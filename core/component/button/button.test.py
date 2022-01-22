@@ -1,6 +1,6 @@
 from tkinter import *
 from tkinter import ttk
-from button import TxButton,RoundedButton,TxCanvas
+from button import TxRectButton,TxRoundedButton,TxCanvas
 
 class Win:
     def __init__(self,root):
@@ -37,10 +37,10 @@ class Win:
         # customButton = CustomButton(root, text="button two",foreground='#1a1a1a',hoverBackground="#ede9e5",background='#fcfbfa',handleClick=self.useDefault)
         # customButton.grid(column=0, row=1, columnspan=2, sticky=(N, W), padx=5,pady=20)
 
-        defaultButton = TxButton(root)
+        defaultButton = TxRectButton(root)
         defaultButton.grid(column=0, row=0, columnspan=2, sticky=(N, W),padx=5,pady=20)
 
-        self.start_btn = RoundedButton(
+        self.start_btn = TxRoundedButton(
         root, border_radius=3, padding=8, color="#16A765", text='Start Camera')
         self.start_btn.grid(column=0, row=1, columnspan=2, sticky=(N, W), padx=5,pady=20)
         
