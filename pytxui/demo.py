@@ -1,6 +1,6 @@
 from tkinter import *
 from tkinter import ttk
-from button import TxRectButton,TxRoundedButton,TxCanvas
+from button import TxRectButton,TxRoundedButton
 
 class Win:
     def __init__(self,root):
@@ -14,7 +14,7 @@ class Win:
         # frame width
         ww = 380
         # frame height
-        wh = 280
+        wh = 380
         x = (sw-ww) / 2
         y = (sh-wh) / 2 - 20
 
@@ -29,26 +29,20 @@ class Win:
         root.columnconfigure(0,weight=1)
         root.rowconfigure(0,weight=1)
 
-        # # default button style
-        # defaultButton = CustomButton(root, text="button one",handleClick=self.useClassic)
-        # defaultButton.grid(column=0, row=0, columnspan=2, sticky=(N, W), padx=5,pady=20)
-
-        # # custom button style
-        # customButton = CustomButton(root, text="button two",foreground='#1a1a1a',hoverBackground="#ede9e5",background='#fcfbfa',handleClick=self.useDefault)
-        # customButton.grid(column=0, row=1, columnspan=2, sticky=(N, W), padx=5,pady=20)
 
         defaultButton = TxRectButton(root)
         defaultButton.grid(column=0, row=0, columnspan=2, sticky=(N, W),padx=5,pady=20)
 
+        primaryButton = TxRectButton(root)
+        primaryButton.grid(column=0, row=0, columnspan=2, sticky=(N, W),padx=5,pady=20)
+
         self.start_btn = TxRoundedButton(
         root, border_radius=3, padding=8, color="#16A765", text='Start Camera')
         self.start_btn.grid(column=0, row=1, columnspan=2, sticky=(N, W), padx=5,pady=20)
+
+   
         
-        self.end_btn = TxCanvas(
-        root)
-        self.end_btn.grid(column=0, row=2, columnspan=2, sticky=(N, W), padx=5,pady=20)
-        
-    # exec bat
+    # click event listener callback
     def useClassic(self,*args):
 
         print('click one')

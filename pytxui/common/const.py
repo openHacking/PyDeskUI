@@ -1,0 +1,1 @@
+THEME_COLOR_PRIMARY =  '#1890ff'
