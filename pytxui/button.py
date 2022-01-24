@@ -99,8 +99,8 @@ class TxButton(Frame):
         print('click')
 
     def transition(self):
-        # smooth fade in transition at a rate of 60 fps and a duration of 300ms
-        self.duration_ms = 300
+        # smooth fade in transition at a rate of 60 fps and a duration of 110ms
+        self.duration_ms = 110
         self.frames_per_second = 60
         self.ms_sleep_duration = self.duration_ms // self.frames_per_second
         self.current_step = 0
