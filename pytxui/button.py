@@ -3,27 +3,41 @@ import tkinter as tk
 import tkinter.font as font
 import sys
 from turtle import back
-from common.const import THEME_COLOR_PRIMARY
+from common.const import THEME_COLOR_BACKGROUND,THEME_COLOR_PRIMARY,THEME_COLOR_PRIMARY_HOVER,THEME_COLOR_FONT
 
 # reference https://stackoverflow.com/a/34466743
-class TxRectButton(Frame):
+class TxButton(Frame):
     def __init__(self,*args, **kwargs):
 
         # reference:How to change border color in Tkinter widget? https://www.geeksforgeeks.org/how-to-change-border-color-in-tkinter-widget/
         Frame.__init__(self)
 
-        types = ('default','primary')
-        typeBackground =  {
-            'default':'#fff',
-            'primary':THEME_COLOR_PRIMARY
+        typeStyle =  {
+            'default':{
+              'background':THEME_COLOR_BACKGROUND,
+              'hoverBackground':THEME_COLOR_BACKGROUND,
+              'foreground':THEME_COLOR_FONT,
+              'hoverForeground':THEME_COLOR_PRIMARY_HOVER,
+              'text':'Default Button',
+              'borderColor':THEME_COLOR_PRIMARY_HOVER
+            },
+            'primary':{
+              'background':THEME_COLOR_PRIMARY,
+              'hoverBackground':THEME_COLOR_PRIMARY_HOVER,
+              'foreground':THEME_COLOR_BACKGROUND,
+              'hoverForeground':THEME_COLOR_BACKGROUND,
+              'text':'Primary Button',
+              'borderColor':THEME_COLOR_PRIMARY
+            }
         }
-
-        self.background = kwargs.get('background',THEME_COLOR_PRIMARY)
-        self.hoverBackground = kwargs.get('hoverBackground',"#40a9ff")
-        self.foreground = kwargs.get('foreground',"#fff")
+        self.type = kwargs.get('type','default')
+        self.background = kwargs.get('background',typeStyle[self.type]['background'])
+        self.hoverBackground = kwargs.get('hoverBackground',typeStyle[self.type]['hoverBackground'])
+        self.foreground = kwargs.get('foreground',typeStyle[self.type]['foreground'])
+        self.hoverForeground = kwargs.get('hoverForeground',typeStyle[self.type]['hoverForeground'])
         self.fontsize = kwargs.get('fontsize',12) 
         self.fontfamily = kwargs.get('fontfamily',"Microsoft YaHei") 
-        self.text = kwargs.get('text',"Primary Button")
+        self.text = kwargs.get('text',typeStyle[self.type]['text'])
         self.width = kwargs.get('width',0) # default width, fit content 
         self.height = kwargs.get('height',0) # default height, fit content 
         self.padx = kwargs.get('padx',10) 
@@ -32,7 +46,7 @@ class TxRectButton(Frame):
         self.borderwidth = kwargs.get('borderwidth',1) 
         self.anchor = kwargs.get('anchor','center') 
         self.justify = kwargs.get('justify','center')
-        self.borderColor = kwargs.get('borderColor','#fff')
+        self.borderColor = kwargs.get('borderColor',typeStyle[self.type]['borderColor'])
         self.borderRadius = kwargs.get('borderRadius',4)
 
         # Label Widget inside the Frame
@@ -66,7 +80,7 @@ class TxRectButton(Frame):
         )
         
     def changeBGEnter(self,event):
-        self.label.config(background=self.hoverBackground,foreground=self.foreground)
+        self.label.config(background=self.hoverBackground,foreground=self.hoverForeground)
 
     def changeBGLeave(self, event):
         self.label.config(background=self.background,foreground=self.foreground)

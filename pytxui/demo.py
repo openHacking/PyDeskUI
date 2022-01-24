@@ -1,6 +1,7 @@
 from tkinter import *
 from tkinter import ttk
-from button import TxRectButton,TxRoundedButton
+from webbrowser import BackgroundBrowser
+from button import TxButton,TxRoundedButton
 
 class Win:
     def __init__(self,root):
@@ -30,15 +31,15 @@ class Win:
         root.rowconfigure(0,weight=1)
 
 
-        defaultButton = TxRectButton(root)
-        defaultButton.grid(column=0, row=0, columnspan=2, sticky=(N, W),padx=5,pady=20)
+        defaultButton = TxButton(root)
+        defaultButton.grid(column=0, row=0 , sticky=(N, W),padx=5,pady=5)
 
-        primaryButton = TxRectButton(root)
-        primaryButton.grid(column=0, row=0, columnspan=2, sticky=(N, W),padx=5,pady=20)
+        primaryButton = TxButton(root,type='primary',background='red')
+        primaryButton.grid(column=1, row=0 , sticky=(N, W),padx=5,pady=5)
 
         self.start_btn = TxRoundedButton(
         root, border_radius=3, padding=8, color="#16A765", text='Start Camera')
-        self.start_btn.grid(column=0, row=1, columnspan=2, sticky=(N, W), padx=5,pady=20)
+        self.start_btn.grid(column=0, row=1 , sticky=(N, W), padx=5,pady=5)
 
    
         
