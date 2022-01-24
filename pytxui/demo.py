@@ -34,7 +34,7 @@ class Win:
         defaultButton = TxButton(root)
         defaultButton.grid(column=0, row=0 , sticky=(N, W),padx=5,pady=5)
 
-        primaryButton = TxButton(root,type='primary',background='red')
+        primaryButton = TxButton(root,type='primary')
         primaryButton.grid(column=1, row=0 , sticky=(N, W),padx=5,pady=5)
 
         self.start_btn = TxRoundedButton(

@@ -4,6 +4,7 @@ import tkinter.font as font
 import sys
 from turtle import back
 from common.const import THEME_COLOR_BACKGROUND,THEME_COLOR_PRIMARY,THEME_COLOR_PRIMARY_HOVER,THEME_COLOR_FONT
+from common.util import hex_to_rgb,interpolate
 
 # reference https://stackoverflow.com/a/34466743
 class TxButton(Frame):
@@ -12,7 +13,7 @@ class TxButton(Frame):
         # reference:How to change border color in Tkinter widget? https://www.geeksforgeeks.org/how-to-change-border-color-in-tkinter-widget/
         Frame.__init__(self)
 
-        typeStyle =  {
+        type_style =  {
             'default':{
               'background':THEME_COLOR_BACKGROUND,
               'hoverBackground':THEME_COLOR_BACKGROUND,
@@ -31,13 +32,13 @@ class TxButton(Frame):
             }
         }
         self.type = kwargs.get('type','default')
-        self.background = kwargs.get('background',typeStyle[self.type]['background'])
-        self.hoverBackground = kwargs.get('hoverBackground',typeStyle[self.type]['hoverBackground'])
-        self.foreground = kwargs.get('foreground',typeStyle[self.type]['foreground'])
-        self.hoverForeground = kwargs.get('hoverForeground',typeStyle[self.type]['hoverForeground'])
+        self.background = kwargs.get('background',type_style[self.type]['background'])
+        self.hoverBackground = kwargs.get('hoverBackground',type_style[self.type]['hoverBackground'])
+        self.foreground = kwargs.get('foreground',type_style[self.type]['foreground'])
+        self.hoverForeground = kwargs.get('hoverForeground',type_style[self.type]['hoverForeground'])
         self.fontsize = kwargs.get('fontsize',12) 
         self.fontfamily = kwargs.get('fontfamily',"Microsoft YaHei") 
-        self.text = kwargs.get('text',typeStyle[self.type]['text'])
+        self.text = kwargs.get('text',type_style[self.type]['text'])
         self.width = kwargs.get('width',0) # default width, fit content 
         self.height = kwargs.get('height',0) # default height, fit content 
         self.padx = kwargs.get('padx',10) 
@@ -46,7 +47,7 @@ class TxButton(Frame):
         self.borderwidth = kwargs.get('borderwidth',1) 
         self.anchor = kwargs.get('anchor','center') 
         self.justify = kwargs.get('justify','center')
-        self.borderColor = kwargs.get('borderColor',typeStyle[self.type]['borderColor'])
+        self.borderColor = kwargs.get('borderColor',type_style[self.type]['borderColor'])
         self.borderRadius = kwargs.get('borderRadius',4)
 
         # Label Widget inside the Frame
@@ -80,13 +81,48 @@ class TxButton(Frame):
         )
         
     def changeBGEnter(self,event):
-        self.label.config(background=self.hoverBackground,foreground=self.hoverForeground)
+
+        self.transition_colors = {
+          'background':(hex_to_rgb(self.background),hex_to_rgb(self.hoverBackground)),
+          'foreground':(hex_to_rgb(self.foreground),hex_to_rgb(self.hoverForeground))
+        }
+        self.transition()
 
     def changeBGLeave(self, event):
-        self.label.config(background=self.background,foreground=self.foreground)
+        self.transition_colors = {
+          'background':(hex_to_rgb(self.hoverBackground),hex_to_rgb(self.background)),
+          'foreground':(hex_to_rgb(self.hoverForeground),hex_to_rgb(self.foreground))
+        }
+        self.transition()
     
     def handleClickDefault(self, event):
         print('click')
+
+    def transition(self):
+        # smooth fade in transition at a rate of 60 fps and a duration of 300ms
+        self.duration_ms = 300
+        self.frames_per_second = 60
+        self.ms_sleep_duration = self.duration_ms // self.frames_per_second
+        self.current_step = 0
+
+        self.update_label()
+
+    # https://stackoverflow.com/a/57338561
+    def update_label(self):
+
+        t = (1.0 / self.frames_per_second) * self.current_step
+        self.current_step += 1
+
+        dic = {}
+        for attr in self.transition_colors:
+            new_color = interpolate(self.transition_colors[attr][0], self.transition_colors[attr][1], t)
+            dic[attr] = "#%02x%02x%02x" % new_color
+
+        self.label.configure(dic)
+
+        if self.current_step <= self.frames_per_second:
+            self.after(self.ms_sleep_duration, self.update_label)
+
 
 # add border radius, https://github.com/ParthJadhav/Tkinter-Designer/issues/31#issuecomment-862535324
 # The border is rounded. On the Windows platform, there will be jagged edges. Rounded corners are not recommended.
