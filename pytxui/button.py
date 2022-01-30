@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.font as font
 import sys
 from turtle import back
-from common.const import THEME_COLOR_BACKGROUND,THEME_COLOR_PRIMARY,THEME_COLOR_PRIMARY_HOVER,THEME_COLOR_FONT
+from common.const import *
 from common.util import hex_to_rgb,interpolate
 
 # reference https://stackoverflow.com/a/34466743
@@ -29,7 +29,23 @@ class TxButton(Frame):
               'hoverForeground':THEME_COLOR_BACKGROUND,
               'text':'Primary Button',
               'borderColor':THEME_COLOR_PRIMARY
-            }
+            },
+            'text':{
+              'background':THEME_COLOR_BACKGROUND,
+              'hoverBackground':THEME_COLOR_GRAY,
+              'foreground':THEME_COLOR_FONT,
+              'hoverForeground':THEME_COLOR_FONT,
+              'text':'Text Button',
+              'borderColor':THEME_COLOR_BACKGROUND
+            },
+            'link':{
+              'background':THEME_COLOR_BACKGROUND,
+              'hoverBackground':THEME_COLOR_BACKGROUND,
+              'foreground':THEME_COLOR_PRIMARY,
+              'hoverForeground':THEME_COLOR_PRIMARY_HOVER,
+              'text':'Link Button',
+              'borderColor':THEME_COLOR_BACKGROUND
+            },
         }
         self.type = kwargs.get('type','default')
         self.background = kwargs.get('background',type_style[self.type]['background'])
@@ -115,6 +131,7 @@ class TxButton(Frame):
 
         dic = {}
         for attr in self.transition_colors:
+            # TODO:will get invalid color name
             new_color = interpolate(self.transition_colors[attr][0], self.transition_colors[attr][1], t)
             dic[attr] = "#%02x%02x%02x" % new_color
 

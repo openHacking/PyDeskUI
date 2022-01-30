@@ -13,9 +13,9 @@ class Win:
         # screen height
         sh = root.winfo_screenheight()
         # frame width
-        ww = 380
-        # frame height
-        wh = 380
+        ww = 600
+        # # frame height
+        wh = 600
         x = (sw-ww) / 2
         y = (sh-wh) / 2 - 20
 
@@ -37,9 +37,15 @@ class Win:
         primaryButton = TxButton(root,type='primary')
         primaryButton.grid(column=1, row=0 , sticky=(N, W),padx=5,pady=5)
 
+        textButton = TxButton(root,type='text')
+        textButton.grid(column=0, row=1 , sticky=(N, W),padx=5,pady=5)
+
+        linkButton = TxButton(root,type='link')
+        linkButton.grid(column=1, row=1 , sticky=(N, W),padx=5,pady=5)
+
         self.start_btn = TxRoundedButton(
         root, border_radius=3, padding=8, color="#16A765", text='Start Camera')
-        self.start_btn.grid(column=0, row=1 , sticky=(N, W), padx=5,pady=5)
+        self.start_btn.grid(column=0, row=2 , sticky=(N, W), padx=5,pady=5)
 
    
         
