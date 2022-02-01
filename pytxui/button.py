@@ -1,10 +1,9 @@
 from tkinter import *
 import tkinter as tk
 import tkinter.font as font
-import sys
-from turtle import back
 from common.const import *
 from common.util import hex_to_rgb,interpolate
+# from PIL import ImageTk,Image  
 
 # reference https://stackoverflow.com/a/34466743
 class TxButton(Frame):
@@ -65,6 +64,15 @@ class TxButton(Frame):
         self.justify = kwargs.get('justify','center')
         self.borderColor = kwargs.get('borderColor',type_style[self.type]['borderColor'])
         self.borderRadius = kwargs.get('borderRadius',4)
+        
+        icon = kwargs.get('icon','assets/img/download.png')
+
+        #  Creating a photoimage object to use image
+        img = PhotoImage(file = icon)
+        # icon = ImageTk.PhotoImage(Image.open(self.icon))
+          
+        # 调整图片尺寸适应按钮大小
+        self.img = img.subsample(10, 10)
 
         # Label Widget inside the Frame
         label = Label(self)
@@ -93,7 +101,10 @@ class TxButton(Frame):
             width=self.width,
             padx=self.padx,
             pady=self.pady,
-            borderwidth=0
+            borderwidth=0,
+            cursor='hand2',
+            image = self.img,
+            compound = LEFT
         )
         
     def changeBGEnter(self,event):

@@ -1,7 +1,7 @@
 from tkinter import *
 from tkinter import ttk
-from webbrowser import BackgroundBrowser
 from button import TxButton,TxRoundedButton
+from input import TxInput
 
 class Win:
     def __init__(self,root):
@@ -30,7 +30,6 @@ class Win:
         root.columnconfigure(0,weight=1)
         root.rowconfigure(0,weight=1)
 
-
         defaultButton = TxButton(root)
         defaultButton.grid(column=0, row=0 , sticky=(N, W),padx=5,pady=5)
 
@@ -43,11 +42,12 @@ class Win:
         linkButton = TxButton(root,type='link')
         linkButton.grid(column=1, row=1 , sticky=(N, W),padx=5,pady=5)
 
+        input = TxInput(root)
+        input.grid(column=0, row=2 , sticky=(N, W),padx=5,pady=5)
+
         self.start_btn = TxRoundedButton(
         root, border_radius=3, padding=8, color="#16A765", text='Start Camera')
-        self.start_btn.grid(column=0, row=2 , sticky=(N, W), padx=5,pady=5)
-
-   
+        self.start_btn.grid(column=0, row=3 , sticky=(N, W), padx=5,pady=5)
         
     # click event listener callback
     def useClassic(self,*args):
