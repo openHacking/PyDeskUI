@@ -1,9 +1,11 @@
+from textwrap import fill
 from tkinter import *
 import tkinter as tk
 import tkinter.font as font
 from common.const import *
 from common.util import hex_to_rgb,interpolate
-# from PIL import ImageTk,Image  
+
+from test_svg import SVGImage
 
 # reference https://stackoverflow.com/a/34466743
 class TxButton(Frame):
@@ -65,14 +67,17 @@ class TxButton(Frame):
         self.borderColor = kwargs.get('borderColor',type_style[self.type]['borderColor'])
         self.borderRadius = kwargs.get('borderRadius',4)
         
-        icon = kwargs.get('icon','assets/img/download.png')
+        icon_path = kwargs.get('icon','./assets/img/download.svg')
 
         #  Creating a photoimage object to use image
-        img = PhotoImage(file = icon)
-        # icon = ImageTk.PhotoImage(Image.open(self.icon))
+        self.imgIns = SVGImage(path=icon_path)
+        self.image = self.imgIns.get_image(fill=self.foreground,scale=0.1)
+
+
+        # img = tksvg.SvgImage(file=icon)
           
         # 调整图片尺寸适应按钮大小
-        self.img = img.subsample(10, 10)
+        # self.img = img.subsample(10, 10)
 
         # Label Widget inside the Frame
         label = Label(self)
@@ -103,7 +108,7 @@ class TxButton(Frame):
             pady=self.pady,
             borderwidth=0,
             cursor='hand2',
-            image = self.img,
+            image = self.image,  # must use image reference
             compound = LEFT
         )
         
@@ -111,14 +116,16 @@ class TxButton(Frame):
 
         self.transition_colors = {
           'background':(hex_to_rgb(self.background),hex_to_rgb(self.hoverBackground)),
-          'foreground':(hex_to_rgb(self.foreground),hex_to_rgb(self.hoverForeground))
+          'foreground':(hex_to_rgb(self.foreground),hex_to_rgb(self.hoverForeground)),
+          'image':(hex_to_rgb(self.foreground),hex_to_rgb(self.hoverForeground)),
         }
         self.transition()
 
     def changeBGLeave(self, event):
         self.transition_colors = {
           'background':(hex_to_rgb(self.hoverBackground),hex_to_rgb(self.background)),
-          'foreground':(hex_to_rgb(self.hoverForeground),hex_to_rgb(self.foreground))
+          'foreground':(hex_to_rgb(self.hoverForeground),hex_to_rgb(self.foreground)),
+          'image':(hex_to_rgb(self.hoverForeground),hex_to_rgb(self.foreground)),
         }
         self.transition()
     
@@ -127,7 +134,7 @@ class TxButton(Frame):
 
     def transition(self):
         # smooth fade in transition at a rate of 60 fps and a duration of 110ms
-        self.duration_ms = 110
+        self.duration_ms = 100
         self.frames_per_second = 60
         self.ms_sleep_duration = self.duration_ms // self.frames_per_second
         self.current_step = 0
@@ -144,7 +151,12 @@ class TxButton(Frame):
         for attr in self.transition_colors:
             # TODO:will get invalid color name
             new_color = interpolate(self.transition_colors[attr][0], self.transition_colors[attr][1], t)
-            dic[attr] = "#%02x%02x%02x" % new_color
+            new_color = "#%02x%02x%02x" % new_color
+            if attr == 'image':
+              self.image = self.imgIns.get_image(fill=new_color,scale=0.1)
+              dic[attr] = self.image
+            else:
+              dic[attr] = new_color
 
         self.label.configure(dic)
 
