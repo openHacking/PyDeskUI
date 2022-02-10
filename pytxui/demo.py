@@ -30,13 +30,13 @@ class Win:
         root.columnconfigure(0,weight=1)
         root.rowconfigure(0,weight=1)
 
-        defaultButton = TxButton(root)
+        defaultButton = TxButton(root,command=self.useClassic)
         defaultButton.grid(column=0, row=0 , sticky=(N, W),padx=5,pady=5)
 
-        primaryButton = TxButton(root,type='primary')
+        primaryButton = TxButton(root,type='primary',size='large')
         primaryButton.grid(column=1, row=0 , sticky=(N, W),padx=5,pady=5)
 
-        textButton = TxButton(root,type='text')
+        textButton = TxButton(root,type='text',size='small')
         textButton.grid(column=0, row=1 , sticky=(N, W),padx=5,pady=5)
 
         linkButton = TxButton(root,type='link')

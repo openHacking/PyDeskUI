@@ -2,10 +2,9 @@ from textwrap import fill
 from tkinter import *
 import tkinter as tk
 import tkinter.font as font
-from common.const import *
-from common.util import hex_to_rgb,interpolate
-
-from test_svg import SVGImage
+from pytxui.common.const import *
+from pytxui.common.util import hex_to_rgb,interpolate
+from pytxui.common.svg_image import SVGImage
 
 # reference https://stackoverflow.com/a/34466743
 class TxButton(Frame):
@@ -48,18 +47,38 @@ class TxButton(Frame):
               'borderColor':THEME_COLOR_BACKGROUND
             },
         }
+        
+        width = 0
+        height = 0
+        padx = {
+          'small':4,
+          'middle':6,
+          'large':6,
+        }
+        pady = {
+          'small':2,
+          'middle':6,
+          'large':8,
+        }
+
+        fontsize = {
+          'small':10,
+          'middle':10,
+          'large':12,
+        }
         self.type = kwargs.get('type','default')
+        self.size = kwargs.get('size','middle')
         self.background = kwargs.get('background',type_style[self.type]['background'])
         self.hoverBackground = kwargs.get('hoverBackground',type_style[self.type]['hoverBackground'])
         self.foreground = kwargs.get('foreground',type_style[self.type]['foreground'])
         self.hoverForeground = kwargs.get('hoverForeground',type_style[self.type]['hoverForeground'])
-        self.fontsize = kwargs.get('fontsize',12) 
+        self.fontsize = kwargs.get('fontsize',fontsize[self.size]) 
         self.fontfamily = kwargs.get('fontfamily',"Microsoft YaHei") 
         self.text = kwargs.get('text',type_style[self.type]['text'])
-        self.width = kwargs.get('width',0) # default width, fit content 
-        self.height = kwargs.get('height',0) # default height, fit content 
-        self.padx = kwargs.get('padx',10) 
-        self.pady = kwargs.get('pady',10) 
+        self.width = kwargs.get('width',width) # default width, fit content 
+        self.height = kwargs.get('height',height) # default height, fit content 
+        self.padx = kwargs.get('padx',padx[self.size]) 
+        self.pady = kwargs.get('pady',pady[self.size]) 
         self.relief = kwargs.get('relief','solid') 
         self.borderwidth = kwargs.get('borderwidth',1) 
         self.anchor = kwargs.get('anchor','center') 
@@ -67,17 +86,12 @@ class TxButton(Frame):
         self.borderColor = kwargs.get('borderColor',type_style[self.type]['borderColor'])
         self.borderRadius = kwargs.get('borderRadius',4)
         
-        icon_path = kwargs.get('icon','./assets/img/download.svg')
-
-        #  Creating a photoimage object to use image
-        self.imgIns = SVGImage(path=icon_path)
-        self.image = self.imgIns.get_image(fill=self.foreground,scale=0.1)
-
-
-        # img = tksvg.SvgImage(file=icon)
-          
-        # 调整图片尺寸适应按钮大小
-        # self.img = img.subsample(10, 10)
+        icon_path = kwargs.get('icon')
+        self.image = ''
+        if icon_path != None:
+          #  Creating a photoimage object to use image
+          self.imgIns = SVGImage(path=icon_path)
+          self.image = self.imgIns.get_image(fill=self.foreground,scale=0.1)
 
         # Label Widget inside the Frame
         label = Label(self)
@@ -92,7 +106,7 @@ class TxButton(Frame):
 
         label.bind("<Enter>", self.changeBGEnter)
         label.bind("<Leave>", self.changeBGLeave)
-        label.bind("<Button-1>",kwargs.get('handleClick',self.handleClickDefault) )
+        label.bind("<Button-1>",kwargs.get('command',self.handleClickDefault) )
 
         # set Label style
         label.config(
@@ -149,12 +163,12 @@ class TxButton(Frame):
 
         dic = {}
         for attr in self.transition_colors:
-            # TODO:will get invalid color name
             new_color = interpolate(self.transition_colors[attr][0], self.transition_colors[attr][1], t)
             new_color = "#%02x%02x%02x" % new_color
             if attr == 'image':
-              self.image = self.imgIns.get_image(fill=new_color,scale=0.1)
-              dic[attr] = self.image
+              if self.image != '':
+                self.image = self.imgIns.get_image(fill=new_color,scale=0.1)
+                dic[attr] = self.image
             else:
               dic[attr] = new_color
 

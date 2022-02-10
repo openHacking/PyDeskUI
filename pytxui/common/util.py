@@ -7,4 +7,13 @@ def interpolate(color_a, color_b, t):
     # 'color_a' and 'color_b' are RGB tuples
     # 't' is a value between 0.0 and 1.0
     # this is a naive interpolation
-    return tuple(int(a + (b - a) * t) for a, b in zip(color_a, color_b))
+    list = []
+    for a, b in zip(color_a, color_b):
+        i = int(a + (b - a) * t)
+        if i < 0:
+            i = 0
+        elif i > 255:
+            i = 255
+        list.append(i)
+    return tuple(list)
+    # return tuple( int(a + (b - a) * t) for a, b in zip(color_a, color_b))

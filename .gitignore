@@ -27,3 +27,4 @@ pids
 # examples
 
 *.spec
+pytxui.egg-info
