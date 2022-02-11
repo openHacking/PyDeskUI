@@ -28,3 +28,5 @@ pids
 
 *.spec
 pytxui.egg-info
+
+.env_tkui
