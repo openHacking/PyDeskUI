@@ -1,4 +1,4 @@
-# 北京奥运会吉祥物冰墩墩绘制
+# Draw Bing Dwen Dwen, the mascot of the Beijing Olympic Games
 
 def draw_bdd(t):
     
@@ -6,7 +6,9 @@ def draw_bdd(t):
     t.penup()
     t.home()
     t.clear()
-    t.speed(30)  # 可以自己调节速度
+
+    # adjust the speed
+    t.speed(30)
 
     # left hand
     t.goto(177, 112)
