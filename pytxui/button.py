@@ -58,7 +58,7 @@ class TxButton(Frame):
         pady = {
           'small':2,
           'middle':6,
-          'large':8,
+          'large':8
         }
 
         fontsize = {

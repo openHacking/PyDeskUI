@@ -34,10 +34,10 @@ def main():
 
     draw()
     
-    buttonReset = TxButton(root,type='primary',size='small',text='reset',command=draw)
+    buttonReset = TxButton(root,type='primary',size='small',text='Reset',command=draw)
     buttonReset.place(x = 5, y = 5)
 
-    buttonDownload = TxButton(root,size='small',text='download',command=save)
+    buttonDownload = TxButton(root,size='small',text='Download',command=save)
     buttonDownload.place(x = 65, y = 5)
 
     root.mainloop()
