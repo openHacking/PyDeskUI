@@ -3,101 +3,112 @@ from tkinter import *
 import tkinter as tk
 import tkinter.font as font
 from pytxui.common.const import *
-from pytxui.common.util import hex_to_rgb,interpolate
+from pytxui.common.util import get_os_type, hex_to_rgb, interpolate
 from pytxui.common.svg_image import SVGImage
 
 # reference https://stackoverflow.com/a/34466743
+
+
 class TxButton(Frame):
-    def __init__(self,*args, **kwargs):
+    def __init__(self, *args, **kwargs):
 
         # reference:How to change border color in Tkinter widget? https://www.geeksforgeeks.org/how-to-change-border-color-in-tkinter-widget/
         Frame.__init__(self)
 
-        type_style =  {
-            'default':{
-              'background':THEME_COLOR_BACKGROUND,
-              'hoverBackground':THEME_COLOR_BACKGROUND,
-              'foreground':THEME_COLOR_FONT,
-              'hoverForeground':THEME_COLOR_PRIMARY_HOVER,
-              'text':'Default Button',
-              'borderColor':THEME_COLOR_PRIMARY_HOVER
+        type_style = {
+            'default': {
+                'background': THEME_COLOR_BACKGROUND,
+                'hoverBackground': THEME_COLOR_BACKGROUND,
+                'foreground': THEME_COLOR_FONT,
+                'hoverForeground': THEME_COLOR_PRIMARY_HOVER,
+                'text': 'Default Button',
+                'borderColor': THEME_COLOR_PRIMARY_HOVER
             },
-            'primary':{
-              'background':THEME_COLOR_PRIMARY,
-              'hoverBackground':THEME_COLOR_PRIMARY_HOVER,
-              'foreground':THEME_COLOR_BACKGROUND,
-              'hoverForeground':THEME_COLOR_BACKGROUND,
-              'text':'Primary Button',
-              'borderColor':THEME_COLOR_PRIMARY
+            'primary': {
+                'background': THEME_COLOR_PRIMARY,
+                'hoverBackground': THEME_COLOR_PRIMARY_HOVER,
+                'foreground': THEME_COLOR_BACKGROUND,
+                'hoverForeground': THEME_COLOR_BACKGROUND,
+                'text': 'Primary Button',
+                'borderColor': THEME_COLOR_PRIMARY
             },
-            'text':{
-              'background':THEME_COLOR_BACKGROUND,
-              'hoverBackground':THEME_COLOR_GRAY,
-              'foreground':THEME_COLOR_FONT,
-              'hoverForeground':THEME_COLOR_FONT,
-              'text':'Text Button',
-              'borderColor':THEME_COLOR_BACKGROUND
+            'text': {
+                'background': THEME_COLOR_BACKGROUND,
+                'hoverBackground': THEME_COLOR_GRAY,
+                'foreground': THEME_COLOR_FONT,
+                'hoverForeground': THEME_COLOR_FONT,
+                'text': 'Text Button',
+                'borderColor': THEME_COLOR_BACKGROUND
             },
-            'link':{
-              'background':THEME_COLOR_BACKGROUND,
-              'hoverBackground':THEME_COLOR_BACKGROUND,
-              'foreground':THEME_COLOR_PRIMARY,
-              'hoverForeground':THEME_COLOR_PRIMARY_HOVER,
-              'text':'Link Button',
-              'borderColor':THEME_COLOR_BACKGROUND
+            'link': {
+                'background': THEME_COLOR_BACKGROUND,
+                'hoverBackground': THEME_COLOR_BACKGROUND,
+                'foreground': THEME_COLOR_PRIMARY,
+                'hoverForeground': THEME_COLOR_PRIMARY_HOVER,
+                'text': 'Link Button',
+                'borderColor': THEME_COLOR_BACKGROUND
             },
         }
-        
+
         width = 0
         height = 0
         padx = {
-          'small':4,
-          'middle':6,
-          'large':6,
+            'small': 4,
+            'middle': 6,
+            'large': 6,
         }
         pady = {
-          'small':2,
-          'middle':6,
-          'large':8,
+            'small': 2,
+            'middle': 6,
+            'large': 8
         }
-
         fontsize = {
-          'small':10,
-          'middle':10,
-          'large':12,
+            'small': 10,
+            'middle': 10,
+            'large': 12,
         }
-        self.type = kwargs.get('type','default')
-        self.size = kwargs.get('size','middle')
-        self.background = kwargs.get('background',type_style[self.type]['background'])
-        self.hoverBackground = kwargs.get('hoverBackground',type_style[self.type]['hoverBackground'])
-        self.foreground = kwargs.get('foreground',type_style[self.type]['foreground'])
-        self.hoverForeground = kwargs.get('hoverForeground',type_style[self.type]['hoverForeground'])
-        self.fontsize = kwargs.get('fontsize',fontsize[self.size]) 
-        self.fontfamily = kwargs.get('fontfamily',"Microsoft YaHei") 
-        self.text = kwargs.get('text',type_style[self.type]['text'])
-        self.width = kwargs.get('width',width) # default width, fit content 
-        self.height = kwargs.get('height',height) # default height, fit content 
-        self.padx = kwargs.get('padx',padx[self.size]) 
-        self.pady = kwargs.get('pady',pady[self.size]) 
-        self.relief = kwargs.get('relief','solid') 
-        self.borderwidth = kwargs.get('borderwidth',1) 
-        self.anchor = kwargs.get('anchor','center') 
-        self.justify = kwargs.get('justify','center')
-        self.borderColor = kwargs.get('borderColor',type_style[self.type]['borderColor'])
-        self.borderRadius = kwargs.get('borderRadius',4)
-        
+        self.type = kwargs.get('type', 'default')
+        self.size = kwargs.get('size', 'middle')
+        self.background = kwargs.get(
+            'background', type_style[self.type]['background'])
+        self.hoverBackground = kwargs.get(
+            'hoverBackground', type_style[self.type]['hoverBackground'])
+        self.foreground = kwargs.get(
+            'foreground', type_style[self.type]['foreground'])
+        self.hoverForeground = kwargs.get(
+            'hoverForeground', type_style[self.type]['hoverForeground'])
+        self.fontsize = kwargs.get('fontsize', fontsize[self.size])
+        self.fontfamily = kwargs.get('fontfamily', "Microsoft YaHei")
+        self.text = kwargs.get('text', type_style[self.type]['text'])
+        self.width = kwargs.get('width', width)  # default width, fit content
+        # default height, fit content
+        self.height = kwargs.get('height', height)
+        self.padx = kwargs.get('padx', padx[self.size])
+        self.pady = kwargs.get('pady', pady[self.size])
+        self.relief = kwargs.get('relief', 'solid')
+        self.borderwidth = kwargs.get('borderwidth', 1)
+        self.anchor = kwargs.get('anchor', 'center')
+        self.justify = kwargs.get('justify', 'center')
+        self.borderColor = kwargs.get(
+            'borderColor', type_style[self.type]['borderColor'])
+        self.borderRadius = kwargs.get('borderRadius', 4)
+
+        self.cursor = 'hand2'
+        if get_os_type() == 'mac':
+            self.cursor = 'pointinghand'
+
         icon_path = kwargs.get('icon')
         self.image = ''
         if icon_path != None:
           #  Creating a photoimage object to use image
           self.imgIns = SVGImage(path=icon_path)
-          self.image = self.imgIns.get_image(fill=self.foreground,scale=0.1)
+          self.image = self.imgIns.get_image(fill=self.foreground, scale=0.1)
 
         # Label Widget inside the Frame
         label = Label(self)
 
         self.label = label
-        
+
         # Place the widgets with border Frame
         label.grid(padx=self.borderwidth, pady=self.borderwidth)
 
@@ -106,7 +117,7 @@ class TxButton(Frame):
 
         label.bind("<Enter>", self.changeBGEnter)
         label.bind("<Leave>", self.changeBGLeave)
-        label.bind("<Button-1>",kwargs.get('command',self.handleClickDefault) )
+        label.bind("<Button-1>", kwargs.get('command', self.handleClickDefault))
 
         # set Label style
         label.config(
@@ -121,28 +132,28 @@ class TxButton(Frame):
             padx=self.padx,
             pady=self.pady,
             borderwidth=0,
-            cursor='hand2',
-            image = self.image,  # must use image reference
-            compound = LEFT
+            cursor=self.cursor,
+            image=self.image,  # must use image reference
+            compound=LEFT
         )
-        
-    def changeBGEnter(self,event):
+
+    def changeBGEnter(self, event):
 
         self.transition_colors = {
-          'background':(hex_to_rgb(self.background),hex_to_rgb(self.hoverBackground)),
-          'foreground':(hex_to_rgb(self.foreground),hex_to_rgb(self.hoverForeground)),
-          'image':(hex_to_rgb(self.foreground),hex_to_rgb(self.hoverForeground)),
+            'background': (hex_to_rgb(self.background), hex_to_rgb(self.hoverBackground)),
+            'foreground': (hex_to_rgb(self.foreground), hex_to_rgb(self.hoverForeground)),
+            'image': (hex_to_rgb(self.foreground), hex_to_rgb(self.hoverForeground)),
         }
         self.transition()
 
     def changeBGLeave(self, event):
         self.transition_colors = {
-          'background':(hex_to_rgb(self.hoverBackground),hex_to_rgb(self.background)),
-          'foreground':(hex_to_rgb(self.hoverForeground),hex_to_rgb(self.foreground)),
-          'image':(hex_to_rgb(self.hoverForeground),hex_to_rgb(self.foreground)),
+            'background': (hex_to_rgb(self.hoverBackground), hex_to_rgb(self.background)),
+            'foreground': (hex_to_rgb(self.hoverForeground), hex_to_rgb(self.foreground)),
+            'image': (hex_to_rgb(self.hoverForeground), hex_to_rgb(self.foreground)),
         }
         self.transition()
-    
+
     def handleClickDefault(self, event):
         print('click')
 
@@ -163,11 +174,12 @@ class TxButton(Frame):
 
         dic = {}
         for attr in self.transition_colors:
-            new_color = interpolate(self.transition_colors[attr][0], self.transition_colors[attr][1], t)
+            new_color = interpolate(
+                self.transition_colors[attr][0], self.transition_colors[attr][1], t)
             new_color = "#%02x%02x%02x" % new_color
             if attr == 'image':
               if self.image != '':
-                self.image = self.imgIns.get_image(fill=new_color,scale=0.1)
+                self.image = self.imgIns.get_image(fill=new_color, scale=0.1)
                 dic[attr] = self.image
             else:
               dic[attr] = new_color
@@ -206,19 +218,21 @@ class TxRoundedButton(tk.Canvas):
       self.create_arc((0, rad, rad, 0),
                       start=90, extent=90, fill=color, outline=color)
       self.create_arc((width-rad, 0, width,
-                        rad), start=0, extent=90, fill=color, outline=color)
+                       rad), start=0, extent=90, fill=color, outline=color)
       self.create_arc((width, height-rad, width-rad,
-                        height), start=270, extent=90, fill=color, outline=color)
-      self.create_arc((0, height-rad, rad, height), start=180, extent=90, fill=color, outline=color)
+                       height), start=270, extent=90, fill=color, outline=color)
+      self.create_arc((0, height-rad, rad, height), start=180,
+                      extent=90, fill=color, outline=color)
       return self.create_polygon((0, height-border_radius, 0, border_radius, border_radius, 0, width-border_radius, 0, width,
-                           border_radius, width, height-border_radius, width-border_radius, height, border_radius, height), fill=color, outline=color)
+                                  border_radius, width, height-border_radius, width-border_radius, height, border_radius, height), fill=color, outline=color)
 
     id = shape()
     (x0, y0, x1, y1) = self.bbox("all")
     width = (x1-x0)
     height = (y1-y0)
     self.configure(width=width, height=height)
-    self.create_text(width/2, height/2,text=text, fill='white', font= self.font)
+    self.create_text(width/2, height/2, text=text,
+                     fill='white', font=self.font)
     self.bind("<ButtonPress-1>", self._on_press)
     self.bind("<ButtonRelease-1>", self._on_release)
 
@@ -229,4 +243,3 @@ class TxRoundedButton(tk.Canvas):
       self.configure(relief="raised")
       if self.command is not None:
           self.command()
-

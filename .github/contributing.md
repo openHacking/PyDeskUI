@@ -17,12 +17,21 @@ python -m venv .env_tkui
 ### 2. Activate virtual environment
 
 For windows CMD
+
 ```shell
 .\.env_tkui\Scripts\activate.bat
 ```
+
+For Mac bash
+
+```shell
+source .env_tkui/bin/activate
+```
+
 other platform check: [venv](https://docs.python.org/3/library/venv.html)
 
 For VS Code
+
 1. `Ctrl+Shift+P`
 2. Search `python interpreter`,choose `Python: Select Interpreter`
 3. choose `.env_tkui` environment
@@ -33,7 +42,7 @@ For VS Code
 
 ```shell
 # install dependencies from requirements.txt
-pip install -r requirements.txt 
+pip install -r requirements.txt
 
 # install pytxui by setup.py, delelop mode
 python setup.py develop
@@ -46,6 +55,7 @@ cd src/pytxui && python demo.py
 ```
 
 ## Useful command
+
 ### add a denpendency
 
 ```shell
@@ -55,6 +65,7 @@ pip install xxx-module
  # generate requirements.txt
 pip freeze > requirements.txt
 ```
+
 ### remove a denpendency
 
 ```shell

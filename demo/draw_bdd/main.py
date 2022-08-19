@@ -7,10 +7,11 @@ from pytxui.button import TxButton
 from save import save_image
 
 # reference:fix dpi issue https://github.com/ponty/pyscreenshot/issues/25#issuecomment-277419831
-from ctypes import windll
-user32 = windll.user32
-user32.SetProcessDPIAware()
-
+import ctypes
+import platform
+if platform.system() == 'Windows': 
+    user32 = ctypes.windll.user32
+    user32.SetProcessDPIAware()
 
 def draw(*args):
     draw_bdd(t)
@@ -33,10 +34,10 @@ def main():
 
     draw()
     
-    buttonReset = TxButton(root,type='primary',size='small',text='reset',command=draw)
+    buttonReset = TxButton(root,type='primary',size='small',text='Reset',command=draw)
     buttonReset.place(x = 5, y = 5)
 
-    buttonDownload = TxButton(root,size='small',text='download',command=save)
+    buttonDownload = TxButton(root,size='small',text='Download',command=save)
     buttonDownload.place(x = 65, y = 5)
 
     root.mainloop()
