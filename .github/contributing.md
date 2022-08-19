@@ -7,13 +7,14 @@
 
 ## Development
 
-### create virtual environment
+### 1. Create virtual environment
 
 ```shell
 # create new virtual environment , named .env_tkui
 python -m venv .env_tkui
 ```
-### activate virtual environment
+
+### 2. Activate virtual environment
 
 For windows CMD
 ```shell
@@ -28,7 +29,7 @@ For VS Code
 4. Open a new `Command Prompt` in VS Code terminal
 
 
-### install dependencies
+### 3. Install dependencies
 
 ```shell
 # install dependencies from requirements.txt
@@ -38,11 +39,10 @@ pip install -r requirements.txt
 python setup.py develop
 
 ```
-### develop feature
+### 4. Develop feature
 
 ```shell
-cd pytxui
-python demo.py
+cd src/pytxui && python demo.py
 ```
 
 ## Useful command
@@ -72,4 +72,17 @@ python setup.py build
 python setup.py install
 # clear setup
 python setup.py clean --all
+```
+
+### Build distribution
+```shell
+py -m pip install --upgrade build
+py -m build
+```
+
+### Publish to PyPI
+
+```shell
+py -m pip install --upgrade twine
+twine upload dist/*
 ```

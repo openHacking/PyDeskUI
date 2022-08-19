@@ -1,6 +1,6 @@
-import setuptools
+from setuptools import setup, find_packages
 
-setuptools.setup(
+setup(
     name="pytxui",
     version="0.0.1",
     author="openHacking",
@@ -18,8 +18,9 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     url="https://github.com/openHacking/TKinter-UI",
-    packages=setuptools.find_packages(),
     python_requires=">=3.7",
-     include_package_data=True,
+    packages=find_packages(where="src"),
+    package_dir={"": "src"},
+    include_package_data=True,
     package_data={'pytxui': ['assets/**/*']}
 )

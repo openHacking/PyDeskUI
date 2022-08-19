@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytxui"
+version = "0.0.1"
+authors = [
+  { name="openHacking", email="openHacking@126.com" },
+]
+description = "Python TKinter Simple UI Components"
+keywords = [
+  'python',
+  'GUI',
+  'tkinter'
+]
+
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.7"
+dependencies = [
+  'lxml==4.7.1',
+  'Pillow==9.0.1',
+  'tksvg==0.7.4'
+]
+classifiers = [
+        #   3 - Alpha
+        #   4 - Beta
+        #   5 - Production/Stable
+        'Development Status :: 3 - Alpha',
+        'Intended Audience :: Developers',
+        'Topic :: Software Development :: Build Tools',
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/openHacking/TKinter-UI"
+"Bug Tracker" = "https://github.com/openHacking/TKinter-UI/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pytxui = ['assets/**/*']
