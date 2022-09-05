@@ -3,7 +3,7 @@ from tkinter import *
 from turtle import RawTurtle
 
 from draw import draw_bdd
-from pytxui.button import TxButton
+from pydeskui.button import TxButton
 from save import save_image
 
 # reference:fix dpi issue https://github.com/ponty/pyscreenshot/issues/25#issuecomment-277419831

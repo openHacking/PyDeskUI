@@ -1,4 +1,4 @@
-# PyTxUI Contributing Guide
+# PyDeskUI Contributing Guide
 
 ## Technology stack
 
@@ -44,14 +44,14 @@ For VS Code
 # install dependencies from requirements.txt
 pip install -r requirements.txt
 
-# install pytxui by setup.py, delelop mode
+# install pydeskui by setup.py, delelop mode
 python setup.py develop
 
 ```
 ### 4. Develop feature
 
 ```shell
-cd src/pytxui && python demo.py
+cd src/pydeskui && python demo.py
 ```
 
 ## Useful command
@@ -94,6 +94,7 @@ py -m build
 ### Publish to PyPI
 
 ```shell
+# Admin mode installation
 py -m pip install --upgrade twine
 twine upload dist/*
 ```

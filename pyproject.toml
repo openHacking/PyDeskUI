@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pytxui"
+name = "pydeskui"
 version = "0.0.1"
 authors = [
   { name="openHacking", email="openHacking@126.com" },
@@ -12,7 +12,8 @@ description = "Python TKinter Simple UI Components"
 keywords = [
   'python',
   'GUI',
-  'tkinter'
+  'tkinter',
+  'UI'
 ]
 
 readme = "README.md"
@@ -43,4 +44,4 @@ classifiers = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-pytxui = ['assets/**/*']
+pydeskui = ['assets/**/*']

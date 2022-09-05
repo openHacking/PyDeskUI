@@ -1,4 +1,4 @@
-# PyTxUI
+# PyDeskUI
 
 Python TKinter Simple UI Components
 
@@ -15,7 +15,7 @@ root path
 # install dependencies from requirements.txt
 pip install -r requirements.txt
 
-# install pytxui by setup.py, build mode
+# install PyDeskUI by setup.py, build mode
 python setup.py build
 python setup.py install
 ```
@@ -32,7 +32,7 @@ python main.py
 Develop demo
 
 ```sh
-cd pytxui
+cd pydeskui
 python demo.py
 ```
 

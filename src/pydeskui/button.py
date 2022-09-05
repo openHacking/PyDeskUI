@@ -2,9 +2,9 @@ from textwrap import fill
 from tkinter import *
 import tkinter as tk
 import tkinter.font as font
-from pytxui.common.const import *
-from pytxui.common.util import get_os_type, hex_to_rgb, interpolate
-from pytxui.common.svg_image import SVGImage
+from pydeskui.common.const import *
+from pydeskui.common.util import get_os_type, hex_to_rgb, interpolate
+from pydeskui.common.svg_image import SVGImage
 
 # reference https://stackoverflow.com/a/34466743
 

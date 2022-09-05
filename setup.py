@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="pytxui",
+    name="pydeskui",
     version="0.0.1",
     author="openHacking",
     author_email="openHacking@126.com",
@@ -22,5 +22,5 @@ setup(
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     include_package_data=True,
-    package_data={'pytxui': ['assets/**/*']}
+    package_data={'pydeskui': ['assets/**/*']}
 )
