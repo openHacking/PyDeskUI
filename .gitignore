@@ -30,4 +30,4 @@ pids
 pytxui.egg-info
 pydeskui.egg-info
 
-.env_tkui
+.env_ui

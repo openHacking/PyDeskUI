@@ -10,8 +10,8 @@
 ### 1. Create virtual environment
 
 ```shell
-# create new virtual environment , named .env_tkui
-python -m venv .env_tkui
+# create new virtual environment , named .env_ui
+python -m venv .env_ui
 ```
 
 ### 2. Activate virtual environment
@@ -19,13 +19,13 @@ python -m venv .env_tkui
 For windows CMD
 
 ```shell
-.\.env_tkui\Scripts\activate.bat
+.\.env_ui\Scripts\activate.bat
 ```
 
 For Mac bash
 
 ```shell
-source .env_tkui/bin/activate
+source .env_ui/bin/activate
 ```
 
 other platform check: [venv](https://docs.python.org/3/library/venv.html)
@@ -34,9 +34,8 @@ For VS Code
 
 1. `Ctrl+Shift+P`
 2. Search `python interpreter`,choose `Python: Select Interpreter`
-3. choose `.env_tkui` environment
+3. choose `.env_ui` environment
 4. Open a new `Command Prompt` in VS Code terminal
-
 
 ### 3. Install dependencies
 
@@ -48,6 +47,7 @@ pip install -r requirements.txt
 python setup.py develop
 
 ```
+
 ### 4. Develop feature
 
 ```shell
@@ -86,6 +86,7 @@ python setup.py clean --all
 ```
 
 ### Build distribution
+
 ```shell
 py -m pip install --upgrade build
 py -m build
