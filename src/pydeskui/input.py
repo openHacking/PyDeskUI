@@ -8,13 +8,13 @@ import tkinter.ttk as ttk
 
 
 # reference: https://stackoverflow.com/a/66090998
-class TxInput(ttk.Entry):
+class DeskInput(ttk.Entry):
     def __init__(self, root, *args, **kwargs):
 
         style = ttk.Style(root)
 
         # padding = (padx left, pady up,padx right,pady down)
-        style.configure('TxUI.TEntry', padding=(11, 4, 11, 4))
+        style.configure('DeskUI.TEntry', padding=(11, 4, 11, 4))
 
         # declaring string variable
         self.name_var = tk.StringVar()
@@ -24,7 +24,7 @@ class TxInput(ttk.Entry):
 
         self.config(
             textvariable=self.name_var,
-            style='TxUI.TEntry'
+            style='DeskUI.TEntry'
         )
 
     # defining a function that will

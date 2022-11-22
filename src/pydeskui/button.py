@@ -9,7 +9,7 @@ from pydeskui.common.svg_image import SVGImage
 # reference https://stackoverflow.com/a/34466743
 
 
-class TxButton(Frame):
+class DeskButton(Frame):
     def __init__(self, *args, **kwargs):
 
         # reference:How to change border color in Tkinter widget? https://www.geeksforgeeks.org/how-to-change-border-color-in-tkinter-widget/

@@ -1,7 +1,7 @@
 from tkinter import *
 from tkinter import ttk
-from button import TxButton, TxRoundedButton
-from input import TxInput
+from button import DeskButton, TxRoundedButton
+from input import DeskInput
 
 
 class Win:
@@ -31,19 +31,19 @@ class Win:
         # root.columnconfigure(0,weight=1)
         # root.rowconfigure(0,weight=1)
 
-        defaultButton = TxButton(root, command=self.useClassic)
+        defaultButton = DeskButton(root, command=self.useClassic)
         defaultButton.place(x=50, y=50)
 
-        primaryButton = TxButton(root, type='primary', size='large')
+        primaryButton = DeskButton(root, type='primary', size='large')
         primaryButton.place(x=150, y=50)
 
-        textButton = TxButton(root, type='text', size='small')
+        textButton = DeskButton(root, type='text', size='small')
         textButton.place(x=250, y=50)
 
-        linkButton = TxButton(root, type='link')
+        linkButton = DeskButton(root, type='link')
         linkButton.place(x=350, y=50)
 
-        input = TxInput(root)
+        input = DeskInput(root)
         input.place(x=50, y=100)
 
         self.start_btn = TxRoundedButton(
