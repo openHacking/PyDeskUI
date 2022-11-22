@@ -27,7 +27,7 @@ pids
 # examples
 
 *.spec
-pytxui.egg-info
+pyDeskUI.egg-info
 pydeskui.egg-info
 
 .env_ui
