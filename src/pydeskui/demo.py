@@ -46,6 +46,19 @@ class Win:
         input = DeskInput(root)
         input.place(x=50, y=100)
 
+        cb = Checkbutton(root)
+        cb.place(x=100, y=100)
+
+        def metricChanged():
+            print('checkbutton', measureSystem.get())
+
+        measureSystem = StringVar()
+        check = ttk.Checkbutton(root, text='Use Metric',
+                                command=metricChanged, variable=measureSystem,
+                                onvalue='metric', offvalue='imperial')
+
+        check.place(x=130, y=100)
+
         self.start_btn = TxRoundedButton(
             root, border_radius=3, padding=8, color="#16A765", text='Start Camera')
         self.start_btn.place(x=50, y=200)
