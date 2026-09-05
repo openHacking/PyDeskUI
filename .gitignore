@@ -7,7 +7,7 @@
 dist
 build
 lib
-docs
+/docs/_build/
 __pycache__
 
 # Logs
@@ -31,3 +31,9 @@ pyDeskUI.egg-info
 pydeskui.egg-info
 
 .env_ui
+.venv/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/

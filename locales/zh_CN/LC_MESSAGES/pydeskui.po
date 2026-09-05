@@ -1,0 +1,24 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "No items"
+msgstr "暂无项目"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Run"
+msgstr "运行"
+
+msgid "Required"
+msgstr "必填"
+
+msgid "Enter an integer"
+msgstr "请输入整数"
+
+msgid "Choose a listed value"
+msgstr "请选择列表中的值"
+

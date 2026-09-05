@@ -1,7 +1,8 @@
 # Draw Bing Dwen Dwen, the mascot of the Beijing Olympic Games
 
+
 def draw_bdd(t):
-    
+
     # reset
     t.penup()
     t.home()
@@ -139,8 +140,6 @@ def draw_bdd(t):
 
     t.end_fill()
 
-
-
     # right ear inner
     t.penup()
 
@@ -166,8 +165,6 @@ def draw_bdd(t):
 
     t.end_fill()
 
-
-
     # left ear inner
     t.penup()
 
@@ -186,8 +183,6 @@ def draw_bdd(t):
     t.circle(150, 23)
 
     t.end_fill()
-
-
 
     # right hand inner
     t.penup()
@@ -213,8 +208,6 @@ def draw_bdd(t):
     t.circle(300, 14)
 
     t.end_fill()
-
-
 
     # left leg inner
     t.penup()
@@ -277,8 +270,6 @@ def draw_bdd(t):
     t.circle(-200, 27)
 
     t.end_fill()
-
-
 
     # right eye
     # eye socket
@@ -370,8 +361,6 @@ def draw_bdd(t):
     t.circle(5, 360)
 
     t.end_fill()
-
-
 
     # left eye
     # eye socket
@@ -466,8 +455,6 @@ def draw_bdd(t):
 
     t.end_fill()
 
-
-
     # nose
     t.penup()
 
@@ -487,8 +474,6 @@ def draw_bdd(t):
 
     t.end_fill()
 
-
-
     # mouth
     t.penup()
 
@@ -507,8 +492,6 @@ def draw_bdd(t):
     t.circle(-45, 100)
 
     t.end_fill()
-
-
 
     # rainbow circle
     t.penup()
@@ -605,8 +588,6 @@ def draw_bdd(t):
 
     t.penup()
 
-
-
     # heart
     t.penup()
 
@@ -635,8 +616,6 @@ def draw_bdd(t):
     t.circle(-8, 180)
 
     t.end_fill()
-
-
 
     # five rings
     t.penup()
@@ -691,10 +670,8 @@ def draw_bdd(t):
 
     t.penup()
 
-
-
     t.pencolor("black")
 
     t.goto(-16, -160)
 
-    t.write("BEIJING 2022", font=('Arial', 10, 'bold italic'))
+    t.write("BEIJING 2022", font=("Arial", 10, "bold italic"))

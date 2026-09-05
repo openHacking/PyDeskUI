@@ -1,0 +1,16 @@
+name: Bug report
+description: Report reproducible behavior
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, Python, Tcl/Tk and package version
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction and expected/actual behavior
+    validations:
+      required: true

@@ -1,0 +1,6 @@
+include CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md CHANGELOG.md THIRD_PARTY_NOTICES.md requirements-dev.lock
+recursive-include docs *.md *.py *.jpg
+recursive-include examples *.py
+recursive-include skills *.md *.py
+recursive-include locales *.po
+recursive-include scripts *.py
