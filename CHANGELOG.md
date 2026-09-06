@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0
+
 - Restyled Tabs, Tree disclosure spacing and Table headings with compact
   shadcn-inspired hierarchy and density-aware metrics.
 - Let native scrolling children hand wheel input to an enclosing ScrollArea when
@@ -11,9 +13,6 @@
 - Added keyboard-aware focus-ring policies to Theme.
 - Restyled choice and menu popups with rounded themed surfaces and cleaner rows.
 - Dismissed interactive popups on focus loss without stealing the new focus.
-
-## 0.2.0 (unreleased)
-
 - Require Python 3.13+ linked to Tcl/Tk 9.0+ and reject older Tk runtimes.
 - Replace generated PNG control assets and multiresolution PNG icons with Tk 9
   native SVG loading and packaged SVG sources.
@@ -21,16 +20,6 @@
   Gallery theme traversal from about 155 seconds to about 13 seconds locally.
 - Coalesce ScrollArea layout work and cache Gallery pages after first creation.
 - Add `check_runtime`, `load_svg` and `UnsupportedTkVersionError`.
-
-## 0.1.0
-
-- Replace prototype controls with explicit-parent ttk components and owned scheduling.
-- Add scoped themes, English/Chinese labels, forms, lists, progress and dialogs.
-- Consolidate packaging, zero third-party core dependencies, typed exports and examples.
-- Break 0.0.1 names; see the migration guide.
-
-## Unreleased — desktop design system
-
 - Add semantic light/dark themes, density, radius, font, contrast and token configuration export.
 - Replace inherited control chrome with scoped antialiased elements and opaque Aqua-compatible surfaces.
 - Add the input, structure, data, overlay and feedback component collection.
@@ -42,3 +31,10 @@
 - Add a desktop studio with three application scenes, component examples and live theme editing.
 - Preserve variable ownership, native editing and caller-owned event loops; keep runtime dependencies empty.
 - Add platform CI jobs, native integration tests and clean-wheel verification.
+
+## 0.1.0
+
+- Replace prototype controls with explicit-parent ttk components and owned scheduling.
+- Add scoped themes, English/Chinese labels, forms, lists, progress and dialogs.
+- Consolidate packaging, zero third-party core dependencies, typed exports and examples.
+- Break 0.0.1 names; see the migration guide.

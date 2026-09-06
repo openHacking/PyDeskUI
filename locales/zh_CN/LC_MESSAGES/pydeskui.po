@@ -1,5 +1,6 @@
 msgid ""
 msgstr ""
+"POT-Creation-Date: 2026-09-05 14:30+0800\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: zh_CN\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
@@ -21,4 +22,3 @@ msgstr "请输入整数"
 
 msgid "Choose a listed value"
 msgstr "请选择列表中的值"
-
