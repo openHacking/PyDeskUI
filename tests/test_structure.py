@@ -84,8 +84,14 @@ def test_native_collections_tabs_and_split(root):
     first, second = s.Frame(tabs), s.Frame(tabs)
     tabs.add(first, text="First", underline=0)
     tabs.add(second, text="Second", underline=0)
+    tabs.pack()
+    root.update()
+    changes = []
+    tabs.bind("<<NotebookTabChanged>>", lambda _event: changes.append(tabs.select()))
     tabs.select(second)
+    root.update()
     assert tabs.select() == str(second)
+    assert changes[-1] == str(second)
     tabs.tab(second, state="disabled")
     assert tabs.tab(second, "state") == "disabled"
     for orient, key in (("horizontal", "Right"), ("vertical", "Down")):
@@ -186,6 +192,47 @@ def test_scale_refresh_preserves_explicit_dimensions(root):
         root.tk.call("tk", "scaling", old_scaling)
 
 
+def test_shadcn_inspired_collection_metrics_follow_density(root):
+    theme = Theme(root)
+    tabs = s.Tabs(root, theme=theme)
+    table = s.Table(root, columns=("Name",), theme=theme)
+    tree = s.Tree(root, theme=theme)
+    style = theme.style
+    for density, heading_y in (("compact", 8), ("default", 10), ("comfortable", 12)):
+        theme.configure(density=density)
+        heading_padding = root.tk.splitlist(
+            style.lookup(theme.name("Treeview.Heading"), "padding")
+        )
+        assert tuple(map(int, heading_padding)) == (theme.px(8), theme.px(heading_y))
+        assert str(style.lookup(theme.name("Treeview.Heading"), "anchor")) == "w"
+        assert theme.name("portable.Treeheading.padding") in str(
+            style.layout(theme.name("Treeview.Heading"))
+        )
+        assert int(style.lookup(theme.name("Treeview"), "indent")) == theme.px(20)
+        item_layout = str(style.layout(theme.name("Treeview.Item")))
+        assert "Treeitem.padding" in item_layout
+        assert "Treeitem.image" in item_layout
+        assert "Treeitem.text" in item_layout
+        leading_key = f"slot{theme._render_slot}:spacer.tree.leading.indicator.{theme.px(6)}"
+        gap_key = f"slot{theme._render_slot}:spacer.tree.gap.indicator.{theme.px(8)}"
+        assert theme.name(leading_key) in item_layout
+        assert theme._images[leading_key].width() == theme.px(6)
+        assert theme.name(gap_key) in item_layout
+        assert theme._images[gap_key].width() == theme.px(8)
+        assert "Treeitem.indicator" in item_layout
+        assert int(style.lookup(theme.name("Treeview.Item"), "indicatormargins")) == 0
+        assert theme.name("notebook.tab.slot") in str(
+            style.layout(theme.name("TNotebook.Tab"))
+        )
+    assert str(table.heading("Name", "anchor")) == "w"
+    table.heading("Name", anchor="e")
+    assert str(table.heading("Name", "anchor")) == "e"
+    tabs.destroy()
+    table.destroy()
+    tree.destroy()
+    theme.close()
+
+
 def test_portable_scrollbar_layout_is_preserved(root):
     theme = Theme(root)
     names = [theme.name(f"{orient}.TScrollbar") for orient in ("Vertical", "Horizontal")]
@@ -245,7 +292,7 @@ def test_gallery_sidebar_navigation(root, monkeypatch):
     monkeypatch.setattr(root, "mainloop", lambda: None)
     module.main()
     root.update()
-    shell = root.winfo_children()[-1]
+    shell = next(child for child in root.winfo_children() if isinstance(child, module.Gallery))
     assert isinstance(shell.nav, s.Sidebar)
     for key, button in list(shell.nav_buttons.items())[:2]:
         button.invoke()
@@ -303,8 +350,8 @@ def test_wheel_over_dynamic_descendants_and_outside_scope(root):
     assert right.canvas.yview()[0] > 0
 
 
-@pytest.mark.parametrize("kind", ["text", "tree", "listbox", "canvas", "combobox", "spinbox"])
-def test_native_wheel_controls_do_not_scroll_parent(root, kind):
+@pytest.mark.parametrize("kind", ["text", "tree", "listbox"])
+def test_overflowing_native_controls_keep_wheel_while_they_can_scroll(root, kind):
     area, body = _overflowing_area(root)
     if kind == "text":
         child = tk.Text(body, height=3)
@@ -316,20 +363,77 @@ def test_native_wheel_controls_do_not_scroll_parent(root, kind):
     elif kind == "listbox":
         child = tk.Listbox(body, height=3)
         child.insert("end", *range(100))
-    elif kind == "canvas":
-        child = tk.Canvas(body, height=60, scrollregion=(0, 0, 300, 2000))
-    elif kind == "combobox":
-        child = ttk.Combobox(body, values=("One", "Two"))
-    else:
-        child = ttk.Spinbox(body, from_=0, to=10)
     child.pack()
     root.update()
     before = area.canvas.yview()
     child.event_generate("<MouseWheel>", delta=-120)
     root.update()
     assert area.canvas.yview() == before
-    if kind in ("text", "tree", "listbox"):
-        assert child.yview()[0] > 0
+    assert child.yview()[0] > 0
+
+
+@pytest.mark.parametrize("factory", [ttk.Combobox, ttk.Spinbox, ttk.Scale])
+def test_value_controls_keep_wheel_isolated(root, factory):
+    area, body = _overflowing_area(root)
+    child = factory(body)
+    child.pack()
+    root.update()
+    before = area.canvas.yview()
+    child.event_generate("<MouseWheel>", delta=-120)
+    root.update()
+    assert area.canvas.yview() == before
+
+
+@pytest.mark.parametrize("kind", ["text", "tree", "listbox", "canvas"])
+def test_native_scroll_controls_chain_to_parent_without_room(root, kind):
+    area, body = _overflowing_area(root)
+    if kind == "text":
+        child = tk.Text(body, height=3)
+        child.insert("1.0", "short")
+    elif kind == "tree":
+        child = ttk.Treeview(body, height=3)
+        child.insert("", "end", text="short")
+    elif kind == "listbox":
+        child = tk.Listbox(body, height=3)
+        child.insert("end", "short")
+    else:
+        child = tk.Canvas(body, height=60, scrollregion=(0, 0, 300, 60))
+    child.pack()
+    root.update()
+    event = SimpleNamespace(widget=child, delta=-120, state=0, num=None)
+    assert area._subtree_wheel(event) == "break"
+    assert area.canvas.yview()[0] > 0
+
+
+def test_native_scroll_control_chains_at_directional_boundary(root):
+    area, body = _overflowing_area(root)
+    child = tk.Text(body, height=3)
+    child.insert("1.0", "line\n" * 100)
+    child.pack()
+    root.update()
+    down = SimpleNamespace(widget=child, delta=-120, state=0, num=None)
+    up = SimpleNamespace(widget=child, delta=120, state=0, num=None)
+    assert area._subtree_wheel(down) is None
+    child.yview_moveto(1)
+    assert area._subtree_wheel(down) == "break"
+    outer_after_down = area.canvas.yview()[0]
+    area.canvas.yview_moveto(0.5)
+    child.yview_moveto(0)
+    assert area._subtree_wheel(up) == "break"
+    assert area.canvas.yview()[0] < 0.5
+    assert outer_after_down > 0
+
+
+def test_native_scroll_control_chains_shift_wheel_horizontally(root):
+    area, body = _overflowing_area(root, horizontal=True)
+    child = tk.Canvas(body, width=120, height=60, scrollregion=(0, 0, 1000, 60))
+    child.pack()
+    root.update()
+    right = SimpleNamespace(widget=child, delta=-120, state=1, num=None)
+    assert area._subtree_wheel(right) is None
+    child.xview_moveto(1)
+    assert area._subtree_wheel(right) == "break"
+    assert area.canvas.xview()[0] > 0
 
 
 def test_nested_scroll_area_owns_wheel_even_at_boundary(root):

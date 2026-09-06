@@ -91,6 +91,7 @@ class Theme:
         font_family=None,
         font_size=13,
         contrast="normal",
+        focus_ring="auto",
     ):
         if master is None or not isinstance(master, tk.Misc):
             raise TypeError("An explicit Tk master is required")
@@ -114,6 +115,9 @@ class Theme:
         self.density = "default"
         self.font_size: float = 13
         self.contrast = "normal"
+        self.focus_ring = "auto"
+        self._keyboard_navigation = False
+        self._input_bindings: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
         self.font_family = font.nametofont("TkDefaultFont", root=master).actual("family")
         self.reduced_motion = False
         self._overrides = {}
@@ -128,6 +132,7 @@ class Theme:
             font_family=font_family or self.font_family,
             font_size=font_size,
             contrast=contrast,
+            focus_ring=focus_ring,
         )
         self.translator._listeners.add(self._refresh)
         self._theme_binding = master.bind("<<ThemeChanged>>", self._host_changed, add="+")
@@ -144,6 +149,7 @@ class Theme:
         font_family=None,
         font_size=None,
         contrast=None,
+        focus_ring=None,
     ):
         if self._closed:
             raise RuntimeError("Theme is closed")
@@ -154,12 +160,15 @@ class Theme:
         family = self.font_family if font_family is None else font_family
         size = self.font_size if font_size is None else font_size
         contrast = self.contrast if contrast is None else contrast
+        focus_ring = self.focus_ring if focus_ring is None else focus_ring
         if mode not in ("light", "dark"):
             raise ValueError("mode must be light or dark")
         if density not in ("compact", "default", "comfortable"):
             raise ValueError("Invalid density")
         if contrast not in ("normal", "high"):
             raise ValueError("Invalid contrast")
+        if focus_ring not in ("auto", "always", "never"):
+            raise ValueError("focus_ring must be auto, always or never")
         if (
             not isinstance(radius, (int, float))
             or not math.isfinite(radius)
@@ -199,9 +208,13 @@ class Theme:
             self._rgb(color)
         self.mode, self.accent, self.radius, self.density = mode, accent, radius, density
         self.font_family, self.font_size, self.contrast = family, size, contrast
+        self.focus_ring = focus_ring
         self._overrides, self.tokens = overrides, colors
         if reduced_motion is not None:
             self.reduced_motion = bool(reduced_motion)
+        self._apply_window_appearance(self.master.winfo_toplevel())
+        for host in tuple(self._input_bindings):
+            self._apply_window_appearance(host)
         baseline = 1.0 if self.master.tk.call("tk", "windowingsystem") == "aqua" else 96 / 72
         self.scale = max(0.75, float(self.master.tk.call("tk", "scaling")) / baseline)
         self.font.configure(family=family, size=-self.px(size))
@@ -216,6 +229,104 @@ class Theme:
         self._install()
         self._refresh()
         self._active_slot = self._render_slot
+        self._apply_focus_visibility()
+
+    def _focus_spec(self, image, *states):
+        """Return a stable image state spec gated by the user1 visibility bit."""
+        return (*states, "focus", "user1", image)
+
+    def _input_focus_spec(self, image, *states):
+        """Text inputs show their focus edge after pointer or keyboard focus."""
+        if self.focus_ring == "never":
+            return None
+        return (*states, "focus", image)
+
+    def _register_toplevel(self, widget):
+        """Track pointer/keyboard modality without process-global bindings."""
+        host = widget.winfo_toplevel()
+        self._apply_window_appearance(host)
+        if host in self._input_bindings:
+            return
+        bindings = []
+        for sequence, callback in (
+            ("<ButtonPress>", self._pointer_input),
+            ("<KeyPress>", self._keyboard_input),
+            ("<FocusIn>", self._focus_changed),
+        ):
+            bindings.append((sequence, host.bind(sequence, callback, add="+")))
+        self._input_bindings[host] = bindings
+
+    def _apply_window_appearance(self, host):
+        """Keep native window chrome aligned with this theme's color mode."""
+        try:
+            appearance = self.mode
+            if host.tk.call("tk", "windowingsystem") == "aqua":
+                appearance = {"light": "aqua", "dark": "darkaqua"}[self.mode]
+            host.wm_attributes("-appearance", appearance)
+        except tk.TclError:
+            # Tk 9 treats this as a no-op on Linux; tolerate older window
+            # managers too so a custom runtime cannot break widget creation.
+            pass
+
+    def _pointer_input(self, event=None):
+        self._set_keyboard_navigation(False)
+        if event is None:
+            return
+        try:
+            host = event.widget.winfo_toplevel()
+            focused = host.focus_get()
+            text_inputs = (tk.Entry, tk.Text, ttk.Entry, ttk.Combobox, ttk.Spinbox)
+            if focused is None or not isinstance(focused, text_inputs):
+                return
+            target = host.winfo_containing(event.x_root, event.y_root) or event.widget
+            current = target
+            while current is not None:
+                if current is focused:
+                    return
+                current = getattr(current, "master", None)
+
+            def blur_if_unchanged():
+                try:
+                    if host.focus_get() is focused:
+                        host.focus_set()
+                except tk.TclError:
+                    pass
+
+            host.after_idle(blur_if_unchanged)
+        except tk.TclError:
+            pass
+
+    def _keyboard_input(self, event):
+        if event.keysym in {
+            "Tab", "ISO_Left_Tab", "Up", "Down", "Left", "Right",
+            "Home", "End", "Prior", "Next", "Return", "KP_Enter", "space",
+        }:
+            self._set_keyboard_navigation(True)
+
+    def _focus_changed(self, event=None):
+        self._apply_focus_visibility()
+
+    def _set_keyboard_navigation(self, enabled):
+        enabled = bool(enabled)
+        if self._keyboard_navigation != enabled:
+            self._keyboard_navigation = enabled
+            self._apply_focus_visibility()
+
+    def _apply_focus_visibility(self):
+        for widget in tuple(self._widgets):
+            try:
+                if isinstance(widget, ttk.Widget):
+                    visible = self.focus_ring == "always" or (
+                        self.focus_ring == "auto" and self._keyboard_navigation
+                    )
+                    # Bypass component state overrides: modality is visual state,
+                    # not a request to propagate disabled/readonly semantics.
+                    ttk.Widget.state(widget, ("user1",) if visible else ("!user1",))
+                callback = getattr(widget, "_focus_visibility_changed", None)
+                if callback is not None:
+                    callback()
+            except tk.TclError:
+                pass
 
     def px(self, value):
         return max(1, round(value * self.scale))
@@ -261,6 +372,111 @@ class Theme:
             self.style.element_create(
                 name, "image", images[0], *images[1:], border=self.px(12), padding=0, sticky="nsew"
             )
+        return name
+
+    def _spacer_element(self, suffix, width):
+        """Return a transparent, fixed-width layout element for native ttk parts."""
+        key = self._image_key(f"spacer.{suffix}.{self.px(width)}")
+        if key not in self._images:
+            self._images[key] = tk.PhotoImage(
+                master=self.master,
+                width=self.px(width),
+                height=1,
+            )
+        name = self.name(key)
+        if name not in self.style.element_names():
+            self.style.element_create(name, "image", self._images[key], sticky="")
+        return name
+
+    def popup_style(self):
+        """Return the shared small rounded-surface style used by popup windows."""
+        image = self._tile(
+            "overlay.popup",
+            self.tokens["popover"],
+            self.tokens["border"],
+            radius=self.radius,
+        )
+        element = self._element("overlay.popup", [image])
+        name = self.name("Popup.TFrame")
+        self.style.layout(name, [(element, {"sticky": "nsew"})])
+        self.style.configure(
+            name,
+            padding=self.px(max(2, min(self.radius, 6) / 2)),
+            background=self.tokens["popover"],
+        )
+        return name
+
+    def menu_item_style(self):
+        """Return the compact, left-aligned action-row style used by menus."""
+        c = self.tokens
+        radius = max(2, min(self.radius, 4))
+        normal = self._tile("menu.item", c["popover"], c["popover"], radius=radius)
+        active = self._tile("menu.item.active", c["accent"], c["accent"], radius=radius)
+        pressed = self._tile("menu.item.pressed", c["accent"], c["foreground"], radius=radius)
+        focus = self._tile("menu.item.focus", c["accent"], c["ring"], 1, radius=radius)
+        disabled = self._tile(
+            "menu.item.disabled", c["popover"], c["popover"], radius=radius
+        )
+        states = [normal, ("disabled", disabled), ("pressed", pressed)]
+        focus_spec = self._focus_spec(focus)
+        if focus_spec is not None:
+            states.append(focus_spec)
+        states.append(("active", active))
+        element = self._element("menu.item", states)
+        name = self.name("MenuItem.TButton")
+        self.style.layout(
+            name,
+            [
+                (
+                    element,
+                    {
+                        "sticky": "nsew",
+                        "children": [
+                            (
+                                self.name("portable.Button.padding"),
+                                {
+                                    "sticky": "nsew",
+                                    "children": [
+                                        (
+                                            self.name("portable.Button.label"),
+                                            {"sticky": "nsew"},
+                                        )
+                                    ],
+                                },
+                            )
+                        ],
+                    },
+                )
+            ],
+        )
+        row_height = {"compact": 26, "default": 28, "comfortable": 32}[self.density]
+        vertical = max(2, round((self.px(row_height) - self.font.metrics("linespace")) / 2))
+        self.style.configure(
+            name,
+            font=self.font,
+            foreground=c["popover_foreground"],
+            background=c["popover"],
+            padding=(self.px(8), vertical),
+            anchor="w",
+            borderwidth=0,
+        )
+        self.style.map(name, foreground=[("disabled", c["muted_foreground"])])
+        return name
+
+    def select_option_style(self):
+        """Return the rounded active-row surface used by Select popups."""
+        c = self.tokens
+        radius = max(2, min(self.radius, 4))
+        normal = self._tile(
+            "select.option", c["popover"], c["popover"], radius=radius
+        )
+        active = self._tile(
+            "select.option.active", c["accent"], c["accent"], radius=radius
+        )
+        element = self._element("select.option", [normal, ("selected", active)])
+        name = self.name("SelectOption.TFrame")
+        self.style.layout(name, [(element, {"sticky": "nsew"})])
+        self.style.configure(name, background=c["popover"], borderwidth=0)
         return name
 
     def _image_key(self, key):
@@ -344,16 +560,12 @@ class Theme:
             pressed = self._tile(variant + "pressed", c[bg], c[fg], 2)
             focus = self._tile(variant + "focus", c[bg], c["ring"], 2)
             disabled = self._tile(variant + "disabled", c["muted"], c["muted"])
-            button_element = self._element(
-                variant + ".button",
-                [
-                    normal,
-                    ("disabled", disabled),
-                    ("pressed", pressed),
-                    ("focus", focus),
-                    ("active", hover),
-                ],
-            )
+            button_states = [normal, ("disabled", disabled), ("pressed", pressed)]
+            focus_spec = self._focus_spec(focus)
+            if focus_spec is not None:
+                button_states.append(focus_spec)
+            button_states.append(("active", hover))
+            button_element = self._element(variant + ".button", button_states)
             for size, delta in (("small", -4), ("medium", 0), ("large", 4)):
                 name = self.name(f"{variant}.{size}.TButton")
                 s.layout(
@@ -392,15 +604,17 @@ class Theme:
                     borderwidth=0,
                 )
                 s.map(name, foreground=[("disabled", c["muted_foreground"])])
-        entry_element = self._element(
-            "entry.field",
-            [
-                self._tile("entry", c["card"], c["input"]),
-                ("disabled", self._tile("entrydisabled", c["muted"], c["border"])),
-                ("invalid", self._tile("entryinvalid", c["card"], c["destructive"], 2)),
-                ("focus", self._tile("entryfocus", c["card"], c["ring"], 2)),
-            ],
+        entry_states = [
+            self._tile("entry", c["card"], c["input"]),
+            ("disabled", self._tile("entrydisabled", c["muted"], c["border"])),
+            ("invalid", self._tile("entryinvalid", c["card"], c["destructive"], 2)),
+        ]
+        focus_spec = self._input_focus_spec(
+            self._tile("entryfocus", c["card"], c["ring"], 2)
         )
+        if focus_spec is not None:
+            entry_states.append(focus_spec)
+        entry_element = self._element("entry.field", entry_states)
         s.layout(
             self.name("TEntry"),
             [
@@ -615,13 +829,80 @@ class Theme:
             background=[("selected", c["secondary"])],
             foreground=[("selected", c["foreground"])],
         )
+        heading_padding = self.name("portable.Treeheading.padding")
+        if heading_padding not in s.element_names():
+            s.element_create(heading_padding, "from", "clam", "Treeheading.padding")
+        s.layout(
+            self.name("Treeview.Heading"),
+            [
+                (
+                    self.name("portable.Treeheading.cell"),
+                    {
+                        "sticky": "nsew",
+                        "children": [
+                            (
+                                heading_padding,
+                                {
+                                    "sticky": "nsew",
+                                    "children": [
+                                        (
+                                            self.name("portable.Treeheading.image"),
+                                            {"side": "right", "sticky": ""},
+                                        ),
+                                        (
+                                            self.name("portable.Treeheading.text"),
+                                            {"sticky": "nsew"},
+                                        ),
+                                    ],
+                                },
+                            )
+                        ],
+                    },
+                )
+            ],
+        )
         s.configure(
             self.name("Treeview.Heading"),
-            background=c["muted"],
-            foreground=c["muted_foreground"],
+            background=c["card"],
+            foreground=c["foreground"],
+            bordercolor=c["border"],
+            lightcolor=c["card"],
+            darkcolor=c["card"],
             font=self.font,
-            padding=self.px(8),
+            padding=(
+                self.px(8),
+                self.px({"compact": 8, "default": 10, "comfortable": 12}[self.density]),
+            ),
+            anchor="w",
+            relief="flat",
         )
+        # Aqua's disclosure element intentionally exposes no margin options.
+        # Explicit transparent elements keep the native chevron while making
+        # its spacing deterministic on every host theme.  Their names end in
+        # "indicator" so ttk's native class binding includes the full padded
+        # area in the expand/collapse hit target.
+        tree_leading_space = self._spacer_element("tree.leading.indicator", 6)
+        tree_indicator_gap = self._spacer_element("tree.gap.indicator", 8)
+        s.layout(
+            self.name("Treeview.Item"),
+            [
+                (
+                    "Treeitem.padding",
+                    {
+                        "sticky": "nsew",
+                        "children": [
+                            (tree_leading_space, {"side": "left", "sticky": ""}),
+                            ("Treeitem.indicator", {"side": "left", "sticky": ""}),
+                            (tree_indicator_gap, {"side": "left", "sticky": ""}),
+                            ("Treeitem.image", {"side": "left", "sticky": ""}),
+                            ("Treeitem.text", {"side": "left", "sticky": ""}),
+                        ],
+                    },
+                )
+            ],
+        )
+        s.configure(self.name("Treeview.Item"), indicatormargins=0)
+        s.configure(self.name("Treeview"), indent=self.px(20))
         # Keep high-volume frame/label surfaces on lightweight ttk elements.
         # SVG image elements are reserved for compact rounded controls.
         self.surface_style(self.name("TFrame"), "card")
@@ -639,18 +920,72 @@ class Theme:
                 arrowsize=self.px(10),
                 width=self.px(10),
             )
-        s.configure(self.name("TNotebook"), background=c["background"])
+        tab_normal = self._tile("notebook.tab", c["muted"], c["muted"], radius=8)
+        tab_hover = self._tile("notebook.tab.hover", c["accent"], c["accent"], radius=8)
+        tab_selected = self._tile("notebook.tab.selected", c["card"], c["border"], radius=8)
+        tab_disabled = self._tile("notebook.tab.disabled", c["muted"], c["muted"], radius=8)
+        tab_focus = self._tile("notebook.tab.focus", c["card"], c["ring"], 2, radius=8)
+        tab_states = [
+            tab_normal,
+            ("disabled", tab_disabled),
+        ]
+        focus_spec = self._focus_spec(tab_focus, "selected")
+        if focus_spec is not None:
+            tab_states.append(focus_spec)
+        tab_states.append(("selected", tab_selected))
+        tab_states.append(("active", tab_hover))
+        tab_element = self._element("notebook.tab", tab_states)
+        s.layout(
+            self.name("TNotebook.Tab"),
+            [
+                (
+                    tab_element,
+                    {
+                        "sticky": "nsew",
+                        "children": [
+                            (
+                                self.name("portable.Notebook.padding"),
+                                {
+                                    "sticky": "nsew",
+                                    "children": [
+                                        (
+                                            self.name("portable.Notebook.label"),
+                                            {"sticky": "nsew"},
+                                        )
+                                    ],
+                                },
+                            )
+                        ],
+                    },
+                )
+            ],
+        )
+        tab_pad = self.px({"compact": 1, "default": 2, "comfortable": 4}[self.density])
+        s.configure(
+            self.name("TNotebook"),
+            background=c["background"],
+            bordercolor=c["background"],
+            lightcolor=c["background"],
+            darkcolor=c["background"],
+            borderwidth=0,
+            relief="flat",
+            tabmargins=0,
+        )
         s.configure(
             self.name("TNotebook.Tab"),
             background=c["muted"],
             foreground=c["muted_foreground"],
-            padding=(self.px(14), self.px(8)),
+            padding=(self.px(10), tab_pad),
             font=self.font,
+            borderwidth=0,
         )
         s.map(
             self.name("TNotebook.Tab"),
-            background=[("selected", c["card"])],
-            foreground=[("selected", c["foreground"])],
+            foreground=[
+                ("disabled", c["muted_foreground"]),
+                ("selected", c["foreground"]),
+                ("active", c["foreground"]),
+            ],
         )
 
     def surface_style(self, name, token="card", *, label=False):
@@ -733,6 +1068,7 @@ class Theme:
             font_size=self.font_size,
             contrast=self.contrast,
             reduced_motion=self.reduced_motion,
+            focus_ring=self.focus_ring,
         )
 
     def close(self):
@@ -746,6 +1082,13 @@ class Theme:
         self._svg_icons.clear()
         self._image_specs.clear()
         self._surface_signatures.clear()
+        for host, bindings in tuple(self._input_bindings.items()):
+            for sequence, ident in bindings:
+                try:
+                    host.unbind(sequence, ident)
+                except tk.TclError:
+                    pass
+        self._input_bindings.clear()
         self._closed = True
 
 

@@ -68,6 +68,17 @@ SNIPPETS = {
 }
 
 
+def _system_theme_mode(root):
+    """Return the current macOS appearance without changing Tk's host theme."""
+    if root.tk.call("tk", "windowingsystem") != "aqua":
+        return "light"
+    try:
+        is_dark = root.tk.getboolean(root.tk.call("wm", "attributes", root._w, "-isdark"))
+    except tk.TclError:
+        return "light"
+    return "dark" if is_dark else "light"
+
+
 class Gallery(Frame):
     def __init__(self, root):
         self.locale = "en"
@@ -76,23 +87,54 @@ class Gallery(Frame):
         self._fonts = {}
         self._label_style_specs = set()
         self._page_views = {}
-        self._page_height = 1
+        self._page_heights = {}
+        self._height_job = None
+        self._responsive_job = None
+        self._responsive_width = None
+        self._responsive_size = None
+        self._resize_armed = False
         self.page = "settings"
         self.theme_visible = True
         self._default_family = font.nametofont("TkDefaultFont", root=root).actual("family")
         self._manual_theme = True
-        theme = Theme(root)
+        theme = Theme(root, mode=_system_theme_mode(root))
         super().__init__(root, theme=theme)
         self.pack(fill="both", expand=True)
         root.title("PyDeskUI — Desktop component studio")
         root.geometry("1180x800")
         root.minsize(900, 640)
         self.scheduler = Scheduler(self)
+        self._appearance_bindings = [
+            (
+                "<<DarkAqua>>",
+                root.bind(
+                    "<<DarkAqua>>",
+                    lambda event: self._system_appearance_changed("dark"),
+                    add="+",
+                ),
+            ),
+            (
+                "<<LightAqua>>",
+                root.bind(
+                    "<<LightAqua>>",
+                    lambda event: self._system_appearance_changed("light"),
+                    add="+",
+                ),
+            ),
+        ]
         self._job = None
         self._progress = 0
         self._build_shell()
+        # Widget construction is cheap before the first native paint. Prebuild
+        # each page once so the first navigation has the same fast path as all
+        # later switches, then leave Settings on top.
+        for key, _, _ in PAGES:
+            self.show_page(key)
         self.show_page("settings")
         self.bind("<Configure>", self._responsive, add="+")
+        self.after_idle(self._sync_all_page_heights)
+        self.after_idle(self._arm_resize)
+        self.after_idle(self._sync_system_theme)
         self._refresh_theme()
 
     def tr(self, en, zh):
@@ -151,49 +193,55 @@ class Gallery(Frame):
             if self.theme.mode == "light"
             else self.tr("Light mode", "浅色模式")
         )
+        if self.page in self._page_views:
+            self._queue_page_height(self.page)
 
     def _nav_styles(self):
-        for selected in (False, True):
-            name = self.theme.name("NavSelected.TButton" if selected else "Nav.TButton")
-            token = "card" if selected else "sidebar"
-            self.theme.surface_style(name, token)
-            self.theme.style.layout(
-                name,
-                [
-                    (
-                        self.theme.name(self.theme._image_key("surface." + token)),
-                        {
-                            "sticky": "nsew",
-                            "children": [
-                                (
-                                    self.theme.name("portable.Button.padding"),
-                                    {
-                                        "sticky": "nsew",
-                                        "children": [
-                                            (
-                                                self.theme.name("portable.Button.label"),
-                                                {"sticky": "nsew"},
-                                            )
-                                        ],
-                                    },
-                                )
-                            ],
-                        },
-                    )
-                ],
-            )
-            self.theme.style.configure(
-                name,
-                padding=(12, 9),
-                anchor="w",
-                font=self.theme.font,
-                foreground=self.theme.tokens["foreground"],
-            )
-            self.theme.style.map(name, foreground=[("focus", self.theme.tokens["primary"])])
+        name = self.theme.name("Nav.TButton")
+        c = self.theme.tokens
+        element = self.theme._element(
+            "gallery.nav",
+            [
+                self.theme._tile("gallery.nav", c["sidebar"], c["sidebar"]),
+                ("selected", self.theme._tile("gallery.nav.selected", c["card"], c["card"])),
+            ],
+        )
+        self.theme.style.layout(
+            name,
+            [
+                (
+                    element,
+                    {
+                        "sticky": "nsew",
+                        "children": [
+                            (
+                                self.theme.name("portable.Button.padding"),
+                                {
+                                    "sticky": "nsew",
+                                    "children": [
+                                        (
+                                            self.theme.name("portable.Button.label"),
+                                            {"sticky": "nsew"},
+                                        )
+                                    ],
+                                },
+                            )
+                        ],
+                    },
+                )
+            ],
+        )
+        self.theme.style.configure(
+            name,
+            padding=(12, 9),
+            anchor="w",
+            font=self.theme.font,
+            foreground=c["foreground"],
+        )
+        self.theme.style.map(name, foreground=[("focus", c["primary"])])
         for key, button in self.nav_buttons.items():
-            button.configure(
-                style=self.theme.name("NavSelected.TButton" if key == self.page else "Nav.TButton")
-            )
+            button.configure(style=name)
+            button.state(("selected",) if key == self.page else ("!selected",))
 
     def _build_shell(self):
         self.columnconfigure(1, weight=1)
@@ -240,12 +288,15 @@ class Gallery(Frame):
             muted=True,
             surface="sidebar",
         ).pack(side="bottom", anchor="w", padx=8, pady=16)
-        self.viewport = ScrollArea(self, theme=self.theme)
+        self.viewport = ScrollArea(self, theme=self.theme, resize_debounce_ms=80)
         self.viewport.grid(row=1, column=1, sticky="nsew")
         self.viewport.canvas.configure(highlightthickness=0)
         self.pages_host = self.viewport.content
         self.pages_host.configure(padding=(28, 24))
         self.pages_host.columnconfigure(0, weight=1)
+        # Page frames may stay mapped for fast switching. Keep their requests
+        # from forcing the scroll content to the tallest cached page.
+        self.pages_host.grid_propagate(False)
         self.body = self.pages_host
         self.theme_panel = Frame(self, theme=self.theme, width=248, padding=(20, 24))
         self.theme_panel.grid(row=1, column=2, sticky="nsew")
@@ -348,7 +399,17 @@ class Gallery(Frame):
             self.theme.configure(accent=color)
 
     def toggle_mode(self):
-        self.theme.configure(mode="dark" if self.theme.mode == "light" else "light")
+        mode = "dark" if self.theme.mode == "light" else "light"
+        self.theme.configure(mode=mode)
+
+    def _system_appearance_changed(self, mode):
+        if self.theme.mode != mode:
+            self.theme.configure(mode=mode)
+
+    def _sync_system_theme(self):
+        mode = _system_theme_mode(self.master)
+        if self.theme.mode != mode:
+            self.theme.configure(mode=mode)
 
     def toggle_locale(self):
         self.locale = "zh_CN" if self.locale == "en" else "en"
@@ -363,6 +424,9 @@ class Gallery(Frame):
         self._set_panel(self._manual_theme)
 
     def _set_panel(self, visible):
+        visible = bool(visible)
+        if self.theme_visible == visible:
+            return
         self.theme_visible = visible
         if visible:
             self.theme_panel.grid()
@@ -371,11 +435,35 @@ class Gallery(Frame):
 
     def _responsive(self, event):
         if event.widget is self:
-            self._set_panel(self.winfo_width() >= 1080 and self._manual_theme)
+            size = (event.width, event.height)
+            resized = self._responsive_size is not None and size != self._responsive_size
+            self._responsive_size = size
+            if self._resize_armed and resized:
+                self._unmap_inactive_pages()
+            self._responsive_width = event.width
+            if self._responsive_job is None:
+                self._responsive_job = self.after_idle(self._apply_responsive)
+
+    def _arm_resize(self):
+        self._resize_armed = True
+
+    def _apply_responsive(self):
+        self._responsive_job = None
+        width = self._responsive_width
+        if width is not None:
+            self._set_panel(width >= 1080 and self._manual_theme)
+        if self.page in self._page_views:
+            self._queue_page_height(self.page)
+
+    def _unmap_inactive_pages(self):
+        """During live resize, keep geometry work limited to the visible page."""
+        for key, page in self._page_views.items():
+            if key != self.page and page.winfo_ismapped():
+                page.grid_remove()
 
     def reset_theme(self):
         self.theme.configure(
-            mode="light",
+            mode=_system_theme_mode(self.master),
             accent=None,
             tokens={},
             radius=6,
@@ -472,7 +560,7 @@ class Gallery(Frame):
         if hasattr(self, "toast") and self.toast.winfo_exists():
             self.toast.destroy()
         self.toast = Toast(self.master, text=message, theme=self.theme)
-        self.toast.show(anchor=self.status)
+        self.toast.show()
 
     def card(self, title, subtitle=None, zh=None, zh_sub=None):
         card = Card(self.body, theme=self.theme, padding=20)
@@ -494,17 +582,17 @@ class Gallery(Frame):
             self._job.cancel()
             self._job = None
         previous = self.page
+        if key == previous and key in self._page_views:
+            return
         self.page = key
         if previous in self.nav_buttons and previous != key:
-            self.nav_buttons[previous].configure(variant="ghost")
-        self.nav_buttons[key].configure(variant="secondary")
-        for name, page in self._page_views.items():
-            if name != key:
-                page.grid_remove()
+            self.nav_buttons[previous].state(("!selected",))
+        self.nav_buttons[key].state(("selected",))
         if key in self._page_views:
             self.body = self._page_views[key]
             self.body.grid()
             self.body.tkraise()
+            self._queue_page_height(key)
             self.viewport.canvas.yview_moveto(0)
             return
         self.body = Frame(self.pages_host, theme=self.theme)
@@ -553,9 +641,32 @@ class Gallery(Frame):
             anchor="w", pady=(4, 24)
         )
         getattr(self, "page_" + key)()
-        self._page_height = max(self._page_height, self.body.winfo_reqheight())
-        self.pages_host.configure(height=self._page_height)
+        self._queue_page_height(key)
         self.viewport.canvas.yview_moveto(0)
+
+    def _queue_page_height(self, key):
+        if self._height_job is not None:
+            self.after_cancel(self._height_job)
+        self._height_job = self.after_idle(lambda: self._sync_page_height(key))
+
+    def _sync_page_height(self, key):
+        self._height_job = None
+        page = self._page_views.get(key)
+        if page is None or not page.winfo_exists():
+            return
+        height = max(1, page.winfo_reqheight())
+        self._page_heights[key] = height
+        if key != self.page:
+            return
+        if int(float(self.pages_host.cget("height"))) != height:
+            self.pages_host.configure(height=height)
+        self.viewport._queue_layout()
+
+    def _sync_all_page_heights(self):
+        for key, page in self._page_views.items():
+            if page.winfo_exists():
+                self._page_heights[key] = max(1, page.winfo_reqheight())
+        self._sync_page_height(self.page)
 
     def copy_example(self):
         code = (
@@ -820,7 +931,7 @@ class Gallery(Frame):
         text.insert("1.0", "A place for longer thoughts…")
         text.pack(fill="x", pady=8)
         row = self.row(c)
-        box = Combobox(row, theme=self.theme, values=("Python", "TypeScript", "Swift"), width=18)
+        box = Select(row, theme=self.theme, values=("Python", "TypeScript", "Swift"), width=18)
         box.set("Python")
         box.pack(side="left")
         Spinbox(row, theme=self.theme, from_=0, to=100, width=8).pack(side="left", padx=12)
@@ -874,11 +985,19 @@ class Gallery(Frame):
         )
         tabs = Tabs(c, theme=self.theme)
         tabs.pack(fill="x", pady=8)
-        a = Frame(tabs, theme=self.theme, padding=16)
-        self.text(a, "Overview of the selected project.", "当前项目概览。").pack(anchor="w")
+        a = Frame(tabs, theme=self.theme)
+        a_content = Card(a, theme=self.theme, padding=16)
+        a_content.pack(fill="x", pady=(8, 0))
+        self.text(
+            a_content, "Overview of the selected project.", "当前项目概览。"
+        ).pack(anchor="w")
         tabs.add(a, text="Overview")
-        b = Frame(tabs, theme=self.theme, padding=16)
-        self.text(b, "Recent project activity appears here.", "项目近期活动。").pack(anchor="w")
+        b = Frame(tabs, theme=self.theme)
+        b_content = Card(b, theme=self.theme, padding=16)
+        b_content.pack(fill="x", pady=(8, 0))
+        self.text(
+            b_content, "Recent project activity appears here.", "项目近期活动。"
+        ).pack(anchor="w")
         tabs.add(b, text="Activity")
         pane = SplitPane(c, theme=self.theme, height=150)
         pane.pack(fill="x", pady=16)
@@ -985,6 +1104,15 @@ class Gallery(Frame):
         ).show(lambda result: self.notify(str(result)))
 
     def _cleanup(self):
+        for sequence, binding in self._appearance_bindings:
+            if binding:
+                self.master.unbind(sequence, binding)
+        for job in (self._height_job, self._responsive_job):
+            if job is not None:
+                try:
+                    self.after_cancel(job)
+                except tk.TclError:
+                    pass
         self.scheduler.close()
 
 

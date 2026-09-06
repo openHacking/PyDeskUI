@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from pydeskui import Theme
-from pydeskui.widgets.controls import Entry
+from pydeskui.widgets.controls import Button, Entry
 from pydeskui.widgets.overlays import (
     Alert,
     ContextMenu,
@@ -19,6 +19,7 @@ from pydeskui.widgets.overlays import (
     Tooltip,
     _clamp_geometry,
 )
+from pydeskui.widgets.views import Dialog
 
 
 @pytest.fixture
@@ -94,6 +95,25 @@ def test_popup_dismissal_and_focus(root):
     assert existing in root.bind("<ButtonPress>")
 
 
+def test_popup_focus_loss_dismisses_without_stealing_focus(root):
+    first = Entry(root)
+    first.pack()
+    target = Entry(root)
+    target.pack()
+    popup = Popover(first)
+    field = Entry(popup.content, theme=popup.theme)
+    field.pack()
+    first.focus_force()
+    root.update()
+    popup.show()
+    root.update()
+    target.focus_force()
+    popup._check_focus()
+    root.update()
+    assert not popup.is_open
+    assert root.focus_get() is target
+
+
 def test_timer_cleanup_and_no_focus(root):
     owner = tk.Frame(root)
     owner.pack()
@@ -162,6 +182,101 @@ def test_menu_commands_navigation_and_binding_cleanup(root):
     context.destroy()
     assert existing in owner.bind("<Button-3>")
     assert not menu._dismiss_bindings
+
+
+def test_menu_button_click_stays_open_and_focuses_first_item(root):
+    owner = Button(root, text="Open menu")
+    owner.pack()
+    menu = DropdownMenu(owner, items=[("One", lambda: None), ("Two", lambda: None)])
+    owner.configure(command=menu.show)
+    root.update()
+
+    owner.event_generate("<ButtonPress-1>", x=4, y=4)
+    owner.event_generate("<ButtonRelease-1>", x=4, y=4)
+    root.update()
+
+    assert menu.is_open
+    assert menu.winfo_ismapped()
+    assert root.focus_get() is menu.items[0]
+    assert menu.items[0].cget("style") == owner.theme.name("MenuItem.TButton")
+    assert str(owner.theme.style.lookup(menu.items[0].cget("style"), "anchor")) == "w"
+    assert menu.winfo_rooty() >= owner.winfo_rooty() + owner.winfo_height() + owner.theme.px(4)
+
+
+def test_attached_menu_stays_inside_host_and_has_transparent_corners(root):
+    owner = tk.Frame(root)
+    owner.place(x=580, y=380, width=20, height=20)
+    menu = DropdownMenu(owner, items=[("A wide menu item", lambda: None)])
+    menu.show(x=-10000, y=10000)
+    root.update()
+    assert menu.winfo_toplevel() is root
+    assert root.winfo_rootx() <= menu.winfo_rootx()
+    assert root.winfo_rooty() <= menu.winfo_rooty()
+    assert menu.winfo_rootx() + menu.winfo_width() <= root.winfo_rootx() + root.winfo_width()
+    assert menu.winfo_rooty() + menu.winfo_height() <= root.winfo_rooty() + root.winfo_height()
+    image = menu.theme._images[menu.theme._image_key("overlay.popup")]
+    assert image.transparency_get(0, 0)
+
+
+def test_native_toplevel_appearance_tracks_theme(root):
+    theme = Theme(root, mode="light")
+    owner = tk.Frame(root)
+    owner.pack()
+    popover = Popover(owner, theme=theme)
+    tooltip = Tooltip(owner, theme=theme)
+    dialog = Dialog(
+        root,
+        title="Confirm",
+        message="Continue?",
+        actions=(("ok", "OK"),),
+        theme=theme,
+    )
+
+    def expected(mode):
+        if root.tk.call("tk", "windowingsystem") == "aqua":
+            return {"light": "aqua", "dark": "darkaqua"}[mode]
+        return mode
+
+    for mode in ("light", "dark"):
+        theme.configure(mode=mode)
+        for window in (root, popover, tooltip, dialog):
+            assert window.wm_attributes("-appearance") == expected(mode)
+        assert popover.content.cget("background") == theme.tokens["popover"]
+        assert tooltip.label.cget("foreground") == theme.tokens["popover_foreground"]
+    for window in (popover, tooltip, dialog):
+        window.destroy()
+    owner.destroy()
+    theme.close()
+
+
+def test_toast_default_stack_limit_reflow_and_explicit_position(root):
+    toasts = [Toast(root, text=str(index), duration_ms=0) for index in range(4)]
+    for toast in toasts:
+        toast.show()
+        root.update()
+    assert not toasts[0].is_open
+    assert [toast.is_open for toast in toasts[1:]] == [True, True, True]
+    assert toasts[1].winfo_y() < toasts[2].winfo_y() < toasts[3].winfo_y()
+    assert (
+        toasts[3].winfo_x() + toasts[3].winfo_width()
+        == root.winfo_width() - toasts[3].theme.px(16)
+    )
+    old_y = toasts[3].winfo_y()
+    toasts[2].hide()
+    root.update()
+    assert toasts[3].winfo_y() == old_y
+    assert toasts[1].winfo_y() < toasts[3].winfo_y()
+    toasts[1].show(text="newest")
+    root.update()
+    assert toasts[1].winfo_y() > toasts[3].winfo_y()
+    explicit = Toast(root, text="anchored", duration_ms=0)
+    explicit.show(anchor=toasts[3])
+    root.update()
+    assert explicit.is_open
+    assert explicit.winfo_toplevel() is root
+    assert explicit.winfo_rootx() + explicit.winfo_width() <= root.winfo_rootx() + root.winfo_width()
+    for toast in (*toasts, explicit):
+        toast.destroy()
 
 
 def test_sheet_is_internal_resizes_restores_and_dismisses(root):

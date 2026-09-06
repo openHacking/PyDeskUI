@@ -6,7 +6,9 @@ and call show()/hide() instead of managing the sheet itself.
 """
 
 import tkinter as tk
+import weakref
 from functools import partial
+from tkinter import ttk
 from typing import Any, cast
 
 from ..theme import resolve_theme
@@ -68,6 +70,7 @@ class _Dismissal:
     def _init_dismissal(self):
         self._dismiss_bindings = []
         self._previous_focus = None
+        self._focus_check = None
         self.is_open = False
 
     def _arm(self):
@@ -77,11 +80,19 @@ class _Dismissal:
             for sequence, callback in (
                 ("<ButtonPress>", self._outside),
                 ("<Escape>", self._escape),
+                ("<FocusOut>", self._focus_out),
             ):
                 ident = target.bind(sequence, callback, add="+")
                 self._dismiss_bindings.append((target, sequence, ident))
 
     def _disarm(self):
+        widget = cast(Any, self)
+        if self._focus_check is not None:
+            try:
+                widget.after_cancel(self._focus_check)
+            except tk.TclError:
+                pass
+            self._focus_check = None
         for target, sequence, ident in self._dismiss_bindings:
             try:
                 target.unbind(sequence, ident)
@@ -91,7 +102,19 @@ class _Dismissal:
 
     def _outside(self, event):
         if self.is_open and not _within(event.widget, self):
-            cast(Any, self).hide()
+            cast(Any, self).hide(restore_focus=False)
+
+    def _focus_out(self, event=None):
+        if self.is_open and self._focus_check is None:
+            widget = cast(Any, self)
+            self._focus_check = widget.after_idle(self._check_focus)
+
+    def _check_focus(self):
+        self._focus_check = None
+        widget = cast(Any, self)
+        focus = widget.focus_get()
+        if self.is_open and (focus is None or not _within(focus, self)):
+            widget.hide(restore_focus=False)
 
     def _escape(self, event=None):
         if self.is_open:
@@ -110,8 +133,10 @@ class _Popup(_Dismissal, Owned, tk.Toplevel):
         self.overrideredirect(True)
         self.transient(master.winfo_toplevel())
         self._own(master, theme)
-        self.content = tk.Frame(self)
-        self.content.pack(fill="both", expand=True, padx=1, pady=1)
+        self._surface = ttk.Frame(self)
+        self._surface.pack(fill="both", expand=True)
+        self.content = tk.Frame(self._surface)
+        self.content.pack(fill="both", expand=True)
         self._owner_binding = master.bind("<Destroy>", self._owner_destroyed, add="+")
         self._refresh_theme()
 
@@ -167,14 +192,14 @@ class _Popup(_Dismissal, Owned, tk.Toplevel):
             self.focus_set()
         return self
 
-    def hide(self):
+    def hide(self, *, restore_focus=True):
         """Dismiss and cancel pending work. Safe to call repeatedly."""
         was_open = self.is_open
         self.is_open = False
         self._cancel_timers()
         self._disarm()
         self.withdraw()
-        if was_open and self._interactive:
+        if was_open and self._interactive and restore_focus:
             _restore(self._previous_focus)
         self._previous_focus = None
 
@@ -196,7 +221,9 @@ class _Popup(_Dismissal, Owned, tk.Toplevel):
         self.is_open = False
 
     def _refresh_theme(self):
-        self.configure(background=_color(self.theme, "border"))
+        theme = self.theme
+        self.configure(background=_color(theme, "background"))
+        self._surface.configure(style=theme.popup_style())
         self.content.configure(background=_color(self.theme, "popover"))
         if hasattr(self, "label"):
             self.label.configure(
@@ -204,6 +231,148 @@ class _Popup(_Dismissal, Owned, tk.Toplevel):
                 foreground=_color(self.theme, "popover_foreground"),
                 font=self.theme.font,
             )
+
+
+class _AttachedPopup(_Dismissal, Owned, ttk.Frame):
+    """Popup surface stacked inside the owner's native application window."""
+
+    def __init__(self, master, *, theme=None, interactive=True):
+        owner = master
+        theme = resolve_theme(owner, theme)
+        self._init_dismissal()
+        self._timers = set()
+        self._interactive = interactive
+        self._owner = owner
+        self._owner_is_destroying = False
+        host = owner.winfo_toplevel()
+        super().__init__(host, takefocus=interactive, style=theme.popup_style())
+        self._own(owner, theme)
+        self.content = tk.Frame(self)
+        self.content.pack(fill="both", expand=True)
+        self._owner_binding = owner.bind("<Destroy>", self._owner_destroyed, add="+")
+        self._refresh_theme()
+
+    def _owner_destroyed(self, event):
+        if event.widget is self._owner:
+            self._owner_is_destroying = True
+            self.destroy()
+
+    def _check_focus(self):
+        self._focus_check = None
+        focus = self.focus_get()
+        if self.is_open and focus is not self._owner and (
+            focus is None or not _within(focus, self)
+        ):
+            self.hide(restore_focus=False)
+
+    def _later(self, delay, callback):
+        def deliver():
+            self._timers.discard(ident)
+            callback()
+
+        ident = self.after(delay, deliver)
+        self._timers.add(ident)
+        return ident
+
+    def _when_idle(self, callback):
+        def deliver():
+            self._timers.discard(ident)
+            callback()
+
+        ident = self.after_idle(deliver)
+        self._timers.add(ident)
+        return ident
+
+    def _cancel_timers(self):
+        for ident in self._timers:
+            try:
+                self.after_cancel(ident)
+            except tk.TclError:
+                pass
+        self._timers.clear()
+
+    def show(self, *, anchor=None, x=None, y=None):
+        """Show inside the owner window; x/y remain screen coordinates."""
+        anchor = self._owner if anchor is None else anchor
+        if anchor.tk is not self.tk:
+            raise ValueError("Anchor belongs to another interpreter")
+        host = self.master
+        host.update_idletasks()
+        self.update_idletasks()
+        width = min(max(1, host.winfo_width()), self.winfo_reqwidth())
+        height = min(max(1, host.winfo_height()), self.winfo_reqheight())
+        host_x, host_y = host.winfo_rootx(), host.winfo_rooty()
+        explicit_y = y is not None
+        if x is None:
+            x = anchor.winfo_rootx()
+        if y is None:
+            y = (
+                anchor.winfo_rooty()
+                + anchor.winfo_height()
+                + self.theme.px(getattr(self, "_anchor_gap", 0))
+            )
+        relative_x, relative_y = x - host_x, y - host_y
+        if not explicit_y and relative_y + height > host.winfo_height():
+            relative_y = anchor.winfo_rooty() - host_y - height
+        relative_x, relative_y, width, height = _clamp_geometry(
+            relative_x,
+            relative_y,
+            width,
+            height,
+            (0, 0, host.winfo_width(), host.winfo_height()),
+        )
+        if not self.is_open and self._interactive:
+            self._previous_focus = self.focus_get() or self._owner.focus_lastfor()
+            self._arm()
+        self.is_open = True
+        self.place(x=relative_x, y=relative_y, width=width, height=height)
+        self.lift()
+        if self._interactive:
+            self._when_idle(self._finish_show)
+        return self
+
+    def _finish_show(self):
+        if not self.is_open:
+            return
+        try:
+            self.lift()
+            self._focus_initial()
+        except tk.TclError:
+            self.hide(restore_focus=False)
+
+    def _focus_initial(self):
+        self.focus_force()
+
+    def hide(self, *, restore_focus=True):
+        was_open = self.is_open
+        self.is_open = False
+        self._cancel_timers()
+        self._disarm()
+        self.place_forget()
+        if was_open and self._interactive and restore_focus:
+            _restore(self._previous_focus)
+        self._previous_focus = None
+
+    def destroy(self):
+        if self.winfo_exists():
+            self.hide()
+            super().destroy()
+
+    def _cleanup(self):
+        self._cancel_timers()
+        self._disarm()
+        if not self._owner_is_destroying:
+            try:
+                self._owner.unbind("<Destroy>", self._owner_binding)
+            except tk.TclError:
+                pass
+        if self.is_open and self._interactive:
+            _restore(self._previous_focus)
+        self.is_open = False
+
+    def _refresh_theme(self):
+        self.configure(style=self.theme.popup_style())
+        self.content.configure(background=_color(self.theme, "popover"))
 
 
 class Popover(_Popup):
@@ -249,7 +418,7 @@ class Tooltip(_Popup):
         super()._cleanup()
 
 
-class DropdownMenu(Popover):
+class DropdownMenu(_AttachedPopup):
     """Menu of (label, no-argument command) pairs and None separators.
 
     add_item returns a Button supporting state(["disabled"]). Keyboard Up/Down,
@@ -259,6 +428,7 @@ class DropdownMenu(Popover):
     def __init__(self, master, *, items=(), theme=None):
         self.items = []
         self._separators = []
+        self._anchor_gap = 4
         super().__init__(master, theme=theme)
         for item in items:
             if item is None:
@@ -276,8 +446,24 @@ class DropdownMenu(Popover):
             if command is not None:
                 command()
 
-        button = Button(self.content, text=label, command=invoke, theme=self.theme, variant="ghost")
-        button.pack(fill="x", padx=3, pady=2)
+        button = Button(
+            self.content,
+            text=label,
+            command=invoke,
+            theme=self.theme,
+            variant="ghost",
+            style=self.theme.menu_item_style(),
+        )
+        button.pack(fill="x", pady=1)
+        for key, step in (
+            ("<Down>", 1),
+            ("<Up>", -1),
+            ("<Tab>", 1),
+            ("<Shift-Tab>", -1),
+        ):
+            button.bind(key, partial(self._move, step), add="+")
+        button.bind("<Home>", lambda e: self._edge(False), add="+")
+        button.bind("<End>", lambda e: self._edge(True), add="+")
         if disabled:
             button.state(["disabled"])
         self.items.append(button)
@@ -285,7 +471,7 @@ class DropdownMenu(Popover):
 
     def add_separator(self):
         separator = tk.Frame(self.content, height=1, background=_color(self.theme, "border"))
-        separator.pack(fill="x", padx=4, pady=3)
+        separator.pack(fill="x", pady=3)
         self._separators.append(separator)
         return separator
 
@@ -312,11 +498,18 @@ class DropdownMenu(Popover):
 
     def show(self, **kwargs):
         super().show(**kwargs)
-        self._edge(False)
         return self
+
+    def _focus_initial(self):
+        enabled = self._enabled()
+        if enabled:
+            enabled[0].focus_force()
 
     def _refresh_theme(self):
         super()._refresh_theme()
+        self.theme.menu_item_style()
+        inset = self.theme.px(max(2, min(self.theme.radius, 6) / 2))
+        self.content.pack_configure(padx=inset, pady=inset)
         for separator in self._separators:
             separator.configure(background=_color(self.theme, "border"))
 
@@ -326,6 +519,7 @@ class ContextMenu(DropdownMenu):
 
     def __init__(self, master, *, items=(), theme=None):
         self._context_bindings = []
+        self._context_owner = master
         super().__init__(master, items=items, theme=theme)
         sequences = ["<Button-3>", "<Shift-F10>"]
         if self.tk.call("tk", "windowingsystem") == "aqua":
@@ -336,22 +530,25 @@ class ContextMenu(DropdownMenu):
 
     def _request(self, event):
         if event.type == tk.EventType.KeyPress:
-            self.show()
+            self._later(0, self.show)
         else:
-            self.show(x=event.x_root, y=event.y_root)
+            self._later(0, lambda: self.show(x=event.x_root, y=event.y_root))
         return "break"
 
     def _cleanup(self):
         for sequence, ident in self._context_bindings:
             try:
-                self.master.unbind(sequence, ident)
+                self._context_owner.unbind(sequence, ident)
             except tk.TclError:
                 pass
         super()._cleanup()
 
 
-class Toast(_Popup):
-    """Non-focusing notification. show(text=..., duration_ms=0) persists."""
+_toast_stacks: weakref.WeakKeyDictionary[Any, list[Any]] = weakref.WeakKeyDictionary()
+
+
+class Toast(_AttachedPopup):
+    """Non-focusing in-app notification; defaults to a bottom-right stack."""
 
     def __init__(self, master, *, text="", duration_ms=3000, theme=None):
         self.duration_ms = _delay(duration_ms)
@@ -360,17 +557,123 @@ class Toast(_Popup):
             self.content, text=text, padx=12, pady=8, wraplength=self.theme.px(360)
         )
         self.label.pack()
+        self._stacked = False
+        self._resize_job = None
+        self._host_resize_binding = self.master.bind(
+            "<Configure>", self._host_resized, add="+"
+        )
         self._refresh_theme()
 
-    def show(self, *, text=None, duration_ms=None, **kwargs):
+    def show(self, *, text=None, duration_ms=None, anchor=None, x=None, y=None):
         delay = self.duration_ms if duration_ms is None else _delay(duration_ms)
         if text is not None:
             self.label.configure(text=text)
         self._cancel_timers()
-        super().show(**kwargs)
+        explicit = anchor is not None or x is not None or y is not None
+        if explicit:
+            was_stacked = self._stacked
+            self._leave_stack()
+            if was_stacked:
+                self._reflow_host(self.master)
+            super().show(anchor=anchor, x=x, y=y)
+        else:
+            stack = _toast_stacks.setdefault(self.master, [])
+            if self in stack:
+                stack.remove(self)
+            stack.append(self)
+            self._stacked = True
+            self.is_open = True
+            while len(stack) > 3:
+                stack[0].hide(restore_focus=False)
+            self._reflow_stack()
         if delay:
             self._later(delay, self.hide)
         return self
+
+    def hide(self, *, restore_focus=True):
+        host = self.master
+        self._leave_stack()
+        super().hide(restore_focus=restore_focus)
+        self._reflow_host(host)
+
+    def _leave_stack(self):
+        stack = _toast_stacks.get(self.master)
+        if stack is not None and self in stack:
+            stack.remove(self)
+            if not stack:
+                _toast_stacks.pop(self.master, None)
+        self._stacked = False
+
+    def _host_resized(self, event):
+        if event.widget is self.master and self._stacked and self._resize_job is None:
+            self._resize_job = self.after_idle(self._resize_reflow)
+
+    def _resize_reflow(self):
+        self._resize_job = None
+        if self._stacked:
+            self._reflow_stack()
+
+    def _reflow_stack(self):
+        self._reflow_host(self.master)
+
+    @staticmethod
+    def _reflow_host(host):
+        stack = _toast_stacks.get(host, [])
+        stack[:] = [
+            toast
+            for toast in stack
+            if toast.winfo_exists() and toast.is_open and toast._stacked
+        ]
+        if not stack:
+            _toast_stacks.pop(host, None)
+            return
+        host.update_idletasks()
+        margin = stack[-1].theme.px(16)
+        gap = stack[-1].theme.px(8)
+        available_width = max(1, host.winfo_width() - 2 * margin)
+        bottom = max(0, host.winfo_height() - margin)
+        positions = {}
+        for toast in reversed(stack):
+            toast.label.configure(
+                wraplength=max(1, min(toast.theme.px(360), available_width - toast.theme.px(24)))
+            )
+            toast.update_idletasks()
+            width = min(available_width, toast.winfo_reqwidth())
+            height = min(max(1, host.winfo_height()), toast.winfo_reqheight())
+            y = max(0, bottom - height)
+            positions[toast] = (max(0, host.winfo_width() - margin - width), y, width, height)
+            bottom = y - gap
+        for toast in stack:
+            x, y, width, height = positions[toast]
+            toast.place(x=x, y=y, width=width, height=height)
+            toast.lift()
+
+    def _refresh_theme(self):
+        super()._refresh_theme()
+        if hasattr(self, "label"):
+            self.label.configure(
+                background=_color(self.theme, "popover"),
+                foreground=_color(self.theme, "popover_foreground"),
+                font=self.theme.font,
+            )
+        if getattr(self, "_stacked", False):
+            self._reflow_stack()
+
+    def _cleanup(self):
+        host = self.master
+        self._leave_stack()
+        if self._resize_job is not None:
+            try:
+                self.after_cancel(self._resize_job)
+            except tk.TclError:
+                pass
+            self._resize_job = None
+        try:
+            host.unbind("<Configure>", self._host_resize_binding)
+        except tk.TclError:
+            pass
+        super()._cleanup()
+        self._reflow_host(host)
 
 
 class Alert(Owned, tk.Frame):

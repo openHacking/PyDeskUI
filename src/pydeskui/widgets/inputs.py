@@ -6,6 +6,7 @@ signatures; choices emit ``<<ComboboxSelected>>`` only on user commitment.
 
 import time
 import tkinter as tk
+from functools import partial
 from tkinter import ttk
 
 from ..resources import svg_photo
@@ -70,6 +71,19 @@ class Textarea(Owned, tk.Text):
             font=theme.font,
         )
         super().configure(**{k: v for k, v in options.items() if k not in self._custom_colors})
+        self._focus_visibility_changed()
+
+    def _focus_visibility_changed(self):
+        if "highlightcolor" in self._custom_colors:
+            return
+        visible = self.theme.focus_ring != "never"
+        self.configure(
+            highlightcolor=_color(
+                self.theme,
+                "ring" if visible else "input",
+                "accent" if visible else "muted",
+            )
+        )
 
 
 class Checkbox(Owned, ttk.Checkbutton):
@@ -125,17 +139,19 @@ class Switch(Checkbox):
                 images[selected, state] = theme._images[key]
         element = theme.name(f"inputs.switch.indicator.slot{theme._render_slot}")
         if element not in style.element_names():
-            style.element_create(
-                element,
-                "image",
+            states = [
                 images[False, "normal"],
                 ("disabled", "selected", images[True, "disabled"]),
                 ("disabled", images[False, "disabled"]),
-                ("focus", "selected", images[True, "focus"]),
-                ("focus", images[False, "focus"]),
-                ("selected", images[True, "normal"]),
-                sticky="",
-            )
+            ]
+            selected_focus = theme._focus_spec(images[True, "focus"], "selected")
+            normal_focus = theme._focus_spec(images[False, "focus"])
+            if selected_focus is not None:
+                states.append(selected_focus)
+            if normal_focus is not None:
+                states.append(normal_focus)
+            states.append(("selected", images[True, "normal"]))
+            style.element_create(element, "image", *states, sticky="")
         name = theme.name("Switch.TCheckbutton")
         padding = _portable(theme, "Checkbutton.padding")
         label = _portable(theme, "Checkbutton.label")
@@ -338,15 +354,17 @@ class Spinbox(Owned, ttk.Spinbox):
     def _refresh_theme(self):
         theme = self.theme
         c, style = theme.tokens, theme.style
-        field = theme._element(
-            "inputs.spin.field",
-            [
-                theme._tile("inputs.spin", c["card"], c["input"]),
-                ("disabled", theme._tile("inputs.spin.disabled", c["muted"], c["border"])),
-                ("invalid", theme._tile("inputs.spin.invalid", c["card"], c["destructive"], 2)),
-                ("focus", theme._tile("inputs.spin.focus", c["card"], c["ring"], 2)),
-            ],
+        field_states = [
+            theme._tile("inputs.spin", c["card"], c["input"]),
+            ("disabled", theme._tile("inputs.spin.disabled", c["muted"], c["border"])),
+            ("invalid", theme._tile("inputs.spin.invalid", c["card"], c["destructive"], 2)),
+        ]
+        focus_spec = theme._input_focus_spec(
+            theme._tile("inputs.spin.focus", c["card"], c["ring"], 2)
         )
+        if focus_spec is not None:
+            field_states.append(focus_spec)
+        field = theme._element("inputs.spin.field", field_states)
         arrows = []
         for direction in ("up", "down"):
             images = {}
@@ -419,6 +437,163 @@ class Spinbox(Owned, ttk.Spinbox):
             super().configure(font=theme.font)
 
 
+class _ChoiceList(tk.Canvas):
+    """Scrollable Select viewport with shadcn-like padded option rows."""
+
+    def __init__(self, master, values, visible_rows, selected, theme, command):
+        self._theme = theme
+        self._command = command
+        self._values = tuple(values)
+        self._active = 0
+        self._selected = selected
+        self._rows = []
+        self._row_height = max(theme.px(28), theme.font.metrics("linespace") + theme.px(10))
+        width = max(
+            theme.px(128),
+            max(theme.font.measure(str(value)) for value in self._values) + theme.px(48),
+        )
+        super().__init__(
+            master,
+            width=width,
+            height=self._row_height * visible_rows,
+            borderwidth=0,
+            highlightthickness=0,
+            relief="flat",
+            cursor="arrow",
+            takefocus=True,
+            yscrollincrement=self._row_height,
+        )
+        self._content = tk.Frame(self, borderwidth=0)
+        self._window = self.create_window(0, 0, anchor="nw", window=self._content, width=width)
+        for index, value in enumerate(self._values):
+            row = ttk.Frame(
+                self._content,
+                height=self._row_height,
+                borderwidth=0,
+                style=theme.select_option_style(),
+            )
+            row.pack(fill="x")
+            row.pack_propagate(False)
+            label = tk.Label(row, text=str(value), anchor="w", borderwidth=0)
+            label.pack(side="left", fill="both", expand=True, padx=(theme.px(8), theme.px(4)))
+            check = tk.Label(
+                row,
+                text="✓" if index == selected else "",
+                anchor="e",
+                width=2,
+                borderwidth=0,
+            )
+            check.pack(side="right", fill="y", padx=(theme.px(4), theme.px(8)))
+            self._rows.append((row, label, check))
+            for target in (row, label, check):
+                target.bind("<Enter>", partial(self._enter, index))
+                target.bind("<ButtonRelease-1>", partial(self._choose, index))
+                target.bind("<MouseWheel>", self._wheel)
+                target.bind("<Button-4>", self._wheel)
+                target.bind("<Button-5>", self._wheel)
+        self.configure(scrollregion=(0, 0, width, self._row_height * len(self._values)))
+        self.bind("<Configure>", self._resize_content, add="+")
+        self.bind("<MouseWheel>", self._wheel)
+        self.bind("<Button-4>", self._wheel)
+        self.bind("<Button-5>", self._wheel)
+        self.refresh_theme(theme)
+
+    def _resize_content(self, event):
+        self.itemconfigure(self._window, width=event.width)
+
+    def set_viewport_width(self, width):
+        """Set the canvas and row surface width before their first paint."""
+        super().configure(width=width)
+        self.itemconfigure(self._window, width=width)
+
+    def _enter(self, index, event=None):
+        self._set_active(index)
+
+    def _choose(self, index, event=None):
+        self._command(index)
+
+    def _wheel(self, event):
+        direction = (
+            -1
+            if getattr(event, "delta", 0) > 0 or getattr(event, "num", None) == 4
+            else 1
+        )
+        self.yview_scroll(direction, "units")
+        return "break"
+
+    def refresh_theme(self, theme):
+        background = _color(theme, "popover", "surface")
+        foreground = _color(theme, "popover_foreground", "text")
+        accent = _color(theme, "accent", "accent")
+        accent_foreground = _color(theme, "accent_foreground", "text")
+        super().configure(background=background)
+        self._content.configure(background=background)
+        option_style = theme.select_option_style()
+        for index, (row, label, check) in enumerate(self._rows):
+            active = index == self._active
+            row_background = accent if active else background
+            row_foreground = accent_foreground if active else foreground
+            row.configure(style=option_style)
+            row.state(["selected"] if active else ["!selected"])
+            label.configure(
+                background=row_background,
+                foreground=row_foreground,
+                font=theme.font,
+            )
+            check.configure(
+                background=row_background,
+                foreground=row_foreground,
+                font=theme.font,
+            )
+
+    def _set_active(self, index):
+        self._active = max(0, min(index, self.size() - 1))
+        self.refresh_theme(self._theme)
+
+    def size(self):
+        return len(self._values)
+
+    def clear_choice(self):
+        return None
+
+    def select_choice(self, index):
+        self._set_active(index)
+
+    def activate(self, index):
+        self._set_active(index)
+
+    def curselection(self):
+        return (self._active,) if self._values else ()
+
+    def index(self, index):
+        return self._active if index == "active" else int(index)
+
+    def get(self, first, last=None):
+        first = int(first)
+        if last == "end":
+            return self._values[first:]
+        return self._values[first]
+
+    def nearest(self, y):
+        return max(0, min(int(self.canvasy(y) // self._row_height), self.size() - 1))
+
+    def choice_bbox(self, index):
+        index = int(index)
+        y = index * self._row_height - int(self.canvasy(0))
+        return (0, y, self.winfo_width(), self._row_height)
+
+    def see(self, index):
+        top = index * self._row_height
+        bottom = top + self._row_height
+        visible_top = self.canvasy(0)
+        visible_bottom = visible_top + self.winfo_height()
+        total = self._row_height * self.size()
+        if top < visible_top:
+            self.yview_moveto(top / total)
+        elif bottom > visible_bottom:
+            self.yview_moveto((bottom - self.winfo_height()) / total)
+
+
 class Combobox(Owned, ttk.Combobox):
     """Editable native entry/value API with a private, theme-scoped popup.
 
@@ -434,10 +609,15 @@ class Combobox(Owned, ttk.Combobox):
         self._custom_font = "font" in options
         options.setdefault("font", theme.font)
         self._popup = None
+        self._popup_shell = None
         self._listbox = None
         self._previous_grab = None
         self._previous_grab_status = None
+        self._outside_host = None
+        self._outside_binding = None
+        self._outside_focus_binding = None
         self._focus_check = None
+        self._popup_focus_job = None
         self._prefix = ""
         self._typed_at = 0.0
         options.setdefault("style", theme.name("TCombobox"))
@@ -458,6 +638,7 @@ class Combobox(Owned, ttk.Combobox):
     def _click(self, event):
         if self.instate(("disabled",)):
             return "break"
+        self.focus_set()
         if self.instate(("readonly",)) or "arrow" in self.identify(event.x, event.y):
             self._toggle_key(event)
             return "break"
@@ -496,63 +677,108 @@ class Combobox(Owned, ttk.Combobox):
         values = self.cget("values")
         if not values:
             return
-        popup = self._popup = tk.Toplevel(self)
-        popup.withdraw()
-        popup.overrideredirect(True)
-        popup.transient(self.winfo_toplevel())
+        host = self.winfo_toplevel()
+        popup = self._popup = ttk.Frame(host, style=self.theme.popup_style())
         self._prefix = ""
         self._previous_grab = self.grab_current()
         self._previous_grab_status = (
             self._previous_grab.grab_status() if self._previous_grab is not None else None
         )
-        listbox = self._listbox = tk.Listbox(
-            popup,
-            exportselection=False,
-            activestyle="dotbox",
-            borderwidth=0,
-            highlightthickness=0,
-            height=max(1, min(len(values), int(self.cget("height")))),
-            takefocus=True,
+        shell = self._popup_shell = popup
+        visible_rows = max(1, min(len(values), int(self.cget("height"))))
+        listbox = self._listbox = _ChoiceList(
+            shell,
+            values,
+            visible_rows,
+            self.current(),
+            self.theme,
+            self._commit_index,
         )
-        listbox.pack(side="left", fill="both", expand=True)
+        listbox.pack(side="left", fill="both", expand=True, padx=4, pady=4)
         scrollbar = ttk.Scrollbar(
-            popup,
+            shell,
             command=listbox.yview,
             takefocus=False,
             style=self.theme.name("Vertical.TScrollbar"),
         )
-        scrollbar.pack(side="right", fill="y")
+        scrollbar_visible = len(values) > visible_rows
+        if scrollbar_visible:
+            scrollbar.pack(side="right", fill="y", padx=(0, 2), pady=4)
         listbox.configure(yscrollcommand=scrollbar.set)
-        listbox.insert("end", *values)
-        self._refresh_theme()
         self._activate(max(0, self.current()))
         listbox.bind("<KeyPress>", self._popup_key)
+        listbox.bind("<FocusOut>", self._schedule_focus_check, add="+")
         listbox.bind("<ButtonRelease-1>", self._choose_click)
+        listbox.bind("<Motion>", self._hover)
         popup.bind("<ButtonPress-1>", self._outside_click, add="+")
         popup.bind("<FocusOut>", self._schedule_focus_check, add="+")
-        popup.update_idletasks()
-        width = min(self.winfo_screenwidth(), max(self.winfo_width(), popup.winfo_reqwidth()))
-        height = min(self.winfo_screenheight(), popup.winfo_reqheight())
-        x = max(0, min(self.winfo_rootx(), self.winfo_screenwidth() - width))
-        y = self.winfo_rooty() + self.winfo_height()
-        if y + height > self.winfo_screenheight():
-            y = max(0, self.winfo_rooty() - height)
-        popup.geometry(f"{width}x{height}+{x}+{y}")
-        popup.deiconify()
+        self._outside_host = self.winfo_toplevel()
+        self._outside_binding = self._outside_host.bind(
+            "<ButtonPress>", self._outside_click, add="+"
+        )
+        self._outside_focus_binding = self._outside_host.bind(
+            "<FocusOut>", self._schedule_focus_check, add="+"
+        )
+        pack_width = 8 + (scrollbar.winfo_reqwidth() + 2 if scrollbar_visible else 0)
+        width = min(
+            host.winfo_width(),
+            max(self.winfo_width(), listbox.winfo_reqwidth() + pack_width),
+        )
+        viewport_width = max(1, width - pack_width)
+        listbox.set_viewport_width(viewport_width)
+        height = min(
+            host.winfo_height(),
+            max(
+                listbox.winfo_reqheight() + 8,
+                scrollbar.winfo_reqheight() + 8 if scrollbar_visible else 0,
+            ),
+        )
+        x = self.winfo_rootx() - host.winfo_rootx()
+        x = max(0, min(x, host.winfo_width() - width))
+        gap = self.theme.px(4)
+        anchor_y = self.winfo_rooty() - host.winfo_rooty()
+        y = anchor_y + self.winfo_height() + gap
+        if y + height > host.winfo_height():
+            y = max(0, anchor_y - height - gap)
+        # Give both the viewport and its embedded row surface their final width
+        # before the frame becomes paintable. This keeps the checkmark stable
+        # on the first frame without a synchronous, application-wide idle flush.
+        popup.place(x=x, y=y, width=width, height=height)
         popup.lift()
         try:
-            popup.grab_set()
-            listbox.focus_force()
+            ttk.Widget.state(self, ("user2",))
+            # Keep focus on the Select until the opening ButtonPress has
+            # finished propagating through the host's bindtags. Otherwise the
+            # host-level text-input blur handler sees the freshly focused list
+            # as an outside click and closes the popup on its first click.
+            self._popup_focus_job = self.after_idle(self._focus_popup)
         except tk.TclError:
             self.close_popup(restore_focus=False)
             raise
+
+    def _focus_popup(self):
+        self._popup_focus_job = None
+        popup = self._popup
+        listbox = self._listbox
+        if popup is None or listbox is None:
+            return
+        try:
+            # A freshly replaced page may still have sibling map/configure
+            # work queued. Reassert stacking after that idle work so its
+            # Canvas cannot cover this attached surface before first paint.
+            popup.lift()
+            listbox.focus_force()
+        except tk.TclError:
+            # The owner or attached surface may have disappeared between the
+            # opening event and this idle callback.
+            self.close_popup(restore_focus=False)
 
     def _activate(self, index):
         if self._listbox is None or not self._listbox.size():
             return
         index = max(0, min(index, self._listbox.size() - 1))
-        self._listbox.selection_clear(0, "end")
-        self._listbox.selection_set(index)
+        self._listbox.clear_choice()
+        self._listbox.select_choice(index)
         self._listbox.activate(index)
         self._listbox.see(index)
 
@@ -611,7 +837,7 @@ class Combobox(Owned, ttk.Combobox):
         if self._listbox is None:
             return "break"
         index = self._listbox.nearest(event.y)
-        box = self._listbox.bbox(index)
+        box = self._listbox.choice_bbox(index)
         if (
             box
             and 0 <= event.x < self._listbox.winfo_width()
@@ -620,6 +846,15 @@ class Combobox(Owned, ttk.Combobox):
             self._activate(index)
             self._commit()
         return "break"
+
+    def _commit_index(self, index):
+        if self._listbox is not None:
+            self._activate(index)
+            self._commit()
+
+    def _hover(self, event):
+        if self._listbox is not None and self._listbox.size():
+            self._activate(self._listbox.nearest(event.y))
 
     def _commit(self):
         if self._listbox is None or self.instate(("disabled",)):
@@ -639,7 +874,20 @@ class Combobox(Owned, ttk.Combobox):
             popup.winfo_rootx() <= event.x_root < popup.winfo_rootx() + popup.winfo_width()
             and popup.winfo_rooty() <= event.y_root < popup.winfo_rooty() + popup.winfo_height()
         ):
-            self.close_popup()
+            target = self.winfo_containing(event.x_root, event.y_root)
+            current = target
+            while current is not None:
+                if current is self:
+                    # The host binding is installed while the opening press is
+                    # still propagating. That same press is not an outside
+                    # click and must not immediately dismiss the new popup.
+                    return None
+                current = getattr(current, "master", None)
+            self.close_popup(restore_focus=False)
+            try:
+                (target or self.winfo_toplevel()).focus_set()
+            except tk.TclError:
+                pass
             return "break"
 
     def _schedule_focus_check(self, event=None):
@@ -650,18 +898,46 @@ class Combobox(Owned, ttk.Combobox):
         self._focus_check = None
         focus = self.focus_get()
         if self._popup is not None and focus is not self:
-            if focus is None or not str(focus).startswith(str(self._popup) + "."):
+            if focus is None or (
+                focus is not self._popup
+                and not str(focus).startswith(str(self._popup) + ".")
+            ):
                 self.close_popup(restore_focus=False)
 
     def close_popup(self, *, restore_focus=True):
-        """Cancel the pending choice and release only this popup's local grab."""
+        """Cancel the pending choice without disturbing an owner's existing grab."""
+        if self._popup_focus_job is not None:
+            try:
+                self.after_cancel(self._popup_focus_job)
+            except tk.TclError:
+                pass
+            self._popup_focus_job = None
         if self._focus_check is not None:
-            self.after_cancel(self._focus_check)
+            try:
+                self.after_cancel(self._focus_check)
+            except tk.TclError:
+                pass
             self._focus_check = None
         popup = self._popup
         if popup is None:
             return
-        self._popup = self._listbox = None
+        if self._outside_host is not None and self._outside_binding is not None:
+            try:
+                self._outside_host.unbind("<ButtonPress>", self._outside_binding)
+            except tk.TclError:
+                pass
+        if self._outside_host is not None and self._outside_focus_binding is not None:
+            try:
+                self._outside_host.unbind("<FocusOut>", self._outside_focus_binding)
+            except tk.TclError:
+                pass
+        self._outside_host = self._outside_binding = None
+        self._outside_focus_binding = None
+        self._popup = self._popup_shell = self._listbox = None
+        try:
+            ttk.Widget.state(self, ("!user2",))
+        except tk.TclError:
+            pass
         previous = self._previous_grab
         self._previous_grab = None
         try:
@@ -687,15 +963,12 @@ class Combobox(Owned, ttk.Combobox):
         focused = theme._tile("inputs.combo.focus", c["card"], c["ring"], 2)
         invalid = theme._tile("inputs.combo.invalid", c["card"], c["destructive"], 2)
         disabled = theme._tile("inputs.combo.disabled", c["muted"], c["border"])
-        field = theme._element(
-            "inputs.combo.field",
-            [
-                normal,
-                ("disabled", disabled),
-                ("invalid", invalid),
-                ("focus", focused),
-            ],
-        )
+        field_states = [normal, ("disabled", disabled), ("invalid", invalid)]
+        field_states.append(("user2", focused))
+        focus_spec = theme._input_focus_spec(focused)
+        if focus_spec is not None:
+            field_states.append(focus_spec)
+        field = theme._element("inputs.combo.field", field_states)
         images = {}
         for state, color in (("normal", c["foreground"]), ("disabled", c["muted_foreground"])):
             key = theme._image_key(f"inputs.combo.chevron.{state}")
@@ -757,15 +1030,13 @@ class Combobox(Owned, ttk.Combobox):
         )
         if not self._custom_font:
             super().configure(font=theme.font)
-        if self._popup is not None and self._listbox is not None:
-            self._popup.configure(background=c["border"], padx=theme.px(1), pady=theme.px(1))
-            self._listbox.configure(
-                background=_color(theme, "popover", "surface"),
-                foreground=_color(theme, "popover_foreground", "text"),
-                selectbackground=_color(theme, "accent", "accent"),
-                selectforeground=_color(theme, "accent_foreground", "surface"),
-                font=theme.font,
-            )
+        if (
+            self._popup is not None
+            and self._popup_shell is not None
+            and self._listbox is not None
+        ):
+            self._popup_shell.configure(style=theme.popup_style())
+            self._listbox.refresh_theme(theme)
 
     def configure(self, cnf=None, **kwargs):
         result = super().configure(cnf, **kwargs)

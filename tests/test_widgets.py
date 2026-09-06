@@ -76,6 +76,21 @@ def test_parent_variables_and_native_options(root):
     assert count == [1]
 
 
+def test_pointer_focuses_entry_and_blank_click_blurs_it(root):
+    theme = Theme(root)
+    entry = Entry(root, theme=theme)
+    entry.pack()
+    root.update()
+    entry.event_generate("<Button-1>", x=4, y=4)
+    root.update()
+    assert root.focus_get() is entry
+    assert entry.instate(("focus",))
+    assert not entry.instate(("user1",))
+    root.event_generate("<ButtonPress-1>", x=500, y=450)
+    root.update()
+    assert root.focus_get() is not entry
+
+
 def test_search_lifetime(root):
     value = tk.StringVar(master=root)
     changes = []

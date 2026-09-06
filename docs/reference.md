@@ -60,12 +60,14 @@ compositions; the API inventory below is the component reference.
 ```text
 Theme(master, *, mode="light", accent=None, reduced_motion=False,
       translator=None, tokens=None, radius=6, density="default",
-      font_family=None, font_size=13, contrast="normal")
+      font_family=None, font_size=13, contrast="normal", focus_ring="auto")
 ```
 
 `radius` accepts finite numbers from 0 through 12; `font_size` accepts finite
 numbers from 9 through 40. `density` is `compact`, `default`, or `comfortable`;
 `contrast` is `normal` or `high`. The default font family comes from TkDefaultFont.
+`focus_ring` is `auto`, `always`, or `never`; auto keeps pointer focus quiet
+while preserving a visible indicator for keyboard navigation.
 See [design system](design-system.md) for all underscore-style token keys.
 
 `configure(...)` refreshes registered widgets. Omitted values retain their
@@ -98,11 +100,11 @@ Native options and methods remain available unless noted.
 | Separator | `orient="horizontal"` or `"vertical"`; non-focusable by default. |
 | Badge | `variant="default"`: `default`, `primary`, `secondary`, `outline`; native label options. |
 | Icon | `name=None, source=None, size=20, color=None`; built-in default is check. `name` and `source` are mutually exclusive; `set_icon(name)` and `set_source(resource)` replace the SVG. |
-| Tabs | ttk.Notebook `add`, `tab`, `select`, `forget`; `<<NotebookTabChanged>>`. Parent pages to the notebook. |
+| Tabs | Compact rounded ttk.Notebook; `add`, `tab`, `select`, `forget`; `<<NotebookTabChanged>>`. Parent pages to the notebook. |
 | SplitPane | `orient="horizontal"`; ttk.Panedwindow `add`, `insert`, `forget`, `pane`, `sashpos`. |
-| ScrollArea | `horizontal=False`; parent children to `.content`. Exposes `.canvas`, `.xscrollbar`, `.yscrollbar`. |
-| Tree | ttk.Treeview with `show="tree"`; native `insert`, `item`, selection and scrolling APIs. |
-| Table | `columns=(), on_sort=None`; defaults to headings. `request_sort(column)` updates the indicator and calls `on_sort(column, direction)`. |
+| ScrollArea | `horizontal=False`, `resize_debounce_ms=0`; parent children to `.content`. Exposes `.canvas`, `.xscrollbar`, `.yscrollbar`. |
+| Tree | ttk.Treeview with `show="tree"`, a 20px logical indent and spaced disclosure indicators; native `insert`, `item`, selection and scrolling APIs. |
+| Table | `columns=(), on_sort=None`; defaults to padded, left-aligned headings. `request_sort(column)` updates the indicator and calls `on_sort(column, direction)`. |
 
 Icon names are `plus`, `minus`, `check`, `x`, `menu`, `search`,
 `chevron-left`, `chevron-right`, `chevron-up`, and `chevron-down`.
@@ -116,7 +118,9 @@ The application reorders rows: Table only signals intent. Use
 Tabs enables native traversal. SplitPane adds arrow-key sash adjustment,
 Shift-arrows for finer adjustment, Home/End to select a sash and Return to cycle
 sashes. ScrollArea handles wheel events on its viewport/content and keyboard
-scrolling on its canvas; it does not intercept every descendant's wheel events.
+scrolling on its canvas. Scrollable native descendants keep a gesture while they
+can move, then hand it to the parent at a boundary; nested ScrollAreas and value
+controls retain their own wheel handling.
 
 ## Inputs
 
@@ -151,9 +155,9 @@ These constructors take positional `master` and optional keyword `theme`.
 |---|---|
 | Popover | Put children in `.content`; `show(anchor=None, x=None, y=None)`, `hide()`, `.is_open`. Coordinates are screen coordinates. |
 | Tooltip | `text="", delay_ms=500`; hover help attached to master; `set_text(text)` and popup show/hide methods. Does not take focus. |
-| DropdownMenu | `items=()` of `(label, command)` pairs or `None` separators; `add_item(label, command=None, disabled=False)` returns a Button; `add_separator()`. |
-| ContextMenu | DropdownMenu attached to master for right click and Shift-F10, plus macOS Control-click handling. |
-| Toast | `text="", duration_ms=3000`; `show(text=None, duration_ms=None, **popup_options)`. Zero duration persists until hidden; does not take focus. |
+| DropdownMenu | `items=()` of `(label, command)` pairs or `None` separators; `add_item(label, command=None, disabled=False)` returns a Button; `add_separator()`. The surface is constrained to the owner's application window. |
+| ContextMenu | In-window DropdownMenu attached to master for right click and Shift-F10, plus macOS Control-click handling. |
+| Toast | `text="", duration_ms=3000`; `show(text=None, duration_ms=None, anchor=None, x=None, y=None)`. The default is an in-window bottom-right stack; zero duration persists until hidden. |
 | Alert | `title="", message="", variant="default", action_text=None, command=None, dismissible=False, on_dismiss=None`; `set_content(title=None, message=None)`, `dismiss()`. |
 | EmptyState | Alert API with default title `"No items"`. |
 | Skeleton | `lines=3, width=240, line_height=12, gap=8`; static Canvas placeholder bars, including when reduced motion is enabled. |
@@ -165,9 +169,23 @@ no arguments; `dismiss()` destroys the alert and invokes `on_dismiss` once.
 Plain destruction does not represent a dismissal callback.
 
 Interactive popovers/menus dismiss on Escape or outside clicks observed in their
-host windows, restore prior focus when possible and do not grab input. Menu
+host windows, and also dismiss when focus leaves the popup. Escape and explicit
+closure restore prior focus when possible; focus-loss dismissal never steals the
+new focus. These overlays do not grab input. Menu
 commands take no arguments and run after hiding. Up/Down, Home/End and Tab move
 among enabled menu items. Tooltip and Toast are noninteractive notifications.
+
+Select lists, DropdownMenu and ContextMenu are attached to their owning native
+window, so another application cannot be stacked between the owner and its menu.
+Their screen-coordinate requests are translated and clamped to the owner's client
+area; a menu near the bottom edge opens above its anchor when possible.
+
+Toasts shown without an explicit anchor or coordinates stack upward from the
+bottom-right corner with a 16 logical-pixel edge margin and an 8-pixel gap. The
+newest toast is at the bottom; at most three are visible and showing a fourth hides
+the oldest. Re-showing an existing toast refreshes its timer and makes it newest.
+Explicitly positioned toasts remain inside the application window and do not join
+the default stack.
 
 Sheet is an application-internal edge panel, not an OS modal sheet. Supported
 sides are `left`, `right`, `top`, `bottom`; positive integer `size` is in logical

@@ -4,25 +4,35 @@ Professional tkinter/ttk components for **Python 3.13+ and Tcl/Tk 9**, with
 zero third-party runtime dependencies. Version 0.2.0 uses Tk 9's native SVG
 reader for scalable icons and compact control surfaces.
 
-First check that Python is 3.13 or newer and is linked to Tk 9:
+## Desktop studio
+
+| Light | Dark |
+|---|---|
+| ![PyDeskUI desktop studio in light mode](https://raw.githubusercontent.com/openHacking/PyDeskUI/main/docs/images/studio-light.jpg) | ![PyDeskUI desktop studio in dark mode](https://raw.githubusercontent.com/openHacking/PyDeskUI/main/docs/images/studio-dark.jpg) |
+
+The gallery includes the complete component collection, three desktop scenes,
+and a live theme editor. From a repository checkout, run
+`python examples/gallery.py` to explore it. The gallery is a demonstration, not
+a complete API or platform/accessibility test.
+
+## Installation
+
+Install PyDeskUI from PyPI:
+
+```sh
+python -m pip install pydeskui
+```
+
+Check that Python is 3.13 or newer and is linked to Tk 9:
 
 ```sh
 python -c "import tkinter as tk; r=tk.Tk(); print(r.tk.call('info','patchlevel')); r.destroy()"
 ```
 
-From the repository root, create a virtual environment **only on first setup**,
-then activate it (macOS/Linux, bash or zsh). If `.venv` already exists, skip the
-creation command and start with `source .venv/bin/activate`:
-
-```sh
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install .
-python examples/gallery.py
-```
-
 Tk 8.6 is rejected when a Theme or component is created. A virtual environment
 inherits Tcl/Tk from its base interpreter; installing PyDeskUI cannot replace it.
+
+## Quick start
 
 ```python
 import tkinter as tk
@@ -54,72 +64,30 @@ helpers and contexts):
 | Additional inputs | Textarea, Checkbox, RadioGroup, Switch, Select, Combobox, Slider, Spinbox |
 | Overlays and feedback | Tooltip, Popover, DropdownMenu, ContextMenu, Alert, Toast, EmptyState, Skeleton, Sheet |
 
+Themes default to keyboard-aware focus rings: pointer interaction stays visually
+quiet while Tab and arrow-key navigation remains visible. Set `focus_ring` to
+`"always"` or `"never"` when an application needs an explicit policy.
+
 Supporting APIs include Item, FieldSpec, Theme, TranslationContext, Scheduler,
 CancelHandle, `check_runtime`, `load_image`, `load_svg` and
 `UnsupportedTkVersionError`. Tk 9 loads SVG, PNG and GIF directly. Bundled icons
 are SVG source assets and are rendered at the active logical size.
 
-Run `python examples/gallery.py` from the repository root to explore interactive
-component compositions. The gallery is a demonstration, not a complete API or
-platform/accessibility test. See the reference for all component contracts.
+## Documentation
 
-See [design system](docs/design-system.md),
-[appearance decision](docs/adr/0002-professional-desktop-appearance.md),
-[implemented API](docs/reference.md), [migration](docs/migration.md),
-[design documents](docs/README.md), [contribution guide](CONTRIBUTING.md),
-and [agent skill](skills/pydeskui/SKILL.md).
+See the [design system](https://github.com/openHacking/PyDeskUI/blob/main/docs/design-system.md),
+[appearance decision](https://github.com/openHacking/PyDeskUI/blob/main/docs/adr/0002-professional-desktop-appearance.md),
+[implemented API](https://github.com/openHacking/PyDeskUI/blob/main/docs/reference.md),
+[migration guide](https://github.com/openHacking/PyDeskUI/blob/main/docs/migration.md),
+[design documents](https://github.com/openHacking/PyDeskUI/blob/main/docs/README.md),
+and [agent skill](https://github.com/openHacking/PyDeskUI/blob/main/skills/pydeskui/SKILL.md).
 
-## Development
+## Contributing
 
-If `.venv` already exists, activate it; do not run `venv` over it again with a
-different Python installation. This can leave interpreter links and
-`pyvenv.cfg` inconsistent, causing `ensurepip` or `encodings` import failures.
-If the environment is broken, first inspect `.venv/pyvenv.cfg` and its interpreter
-links. To recreate it, deactivate it, move it to a backup location, create a new
-`.venv` with the intended Tk-enabled interpreter, and reinstall dependencies.
-Keep the backup for recovery; virtual environments are not portable after moving.
-Use a Python installed at a stable location rather than under `/tmp`, since
-removing the base interpreter also breaks its virtual environments.
+Development setup, testing, and release checks are documented in the
+[contribution guide](https://github.com/openHacking/PyDeskUI/blob/main/CONTRIBUTING.md).
 
-Use the repository's `.venv` for development too, with Python 3.13+ and Tk 9. A venv
-uses its base interpreter's Tcl/Tk installation; it does not install Tk itself.
+## Support
 
-After the initial setup above, activate the existing environment whenever you
-open a new terminal (run these commands from the repository root):
-
-```sh
-source .venv/bin/activate
-python -c "import sys; print(sys.executable)"
-python -m tkinter
-```
-
-The interpreter path should be inside this project's `.venv`. Close the Tk test
-window to continue. On Windows PowerShell, create the environment with
-`python -m venv .venv` and activate it with `.\.venv\Scripts\Activate.ps1`.
-Run `deactivate` to leave the environment. `.venv/` is ignored by Git; do not
-commit or copy it between projects. Activation is optional if you call its
-interpreter directly, for example `.venv/bin/python -m pytest` on macOS/Linux.
-
-Install development dependencies into the activated environment, then verify:
-
-```sh
-python -m pip install -e '.[dev,docs]'
-python scripts/compile_catalogs.py
-python -m pytest
-ruff check .
-mypy
-python -m build
-python -m twine check dist/*
-sphinx-build -W -b html docs build/docs
-```
-
-Standalone Python builds must bundle Tcl/Tk 9 and link `_tkinter` against that
-major version. `check_runtime(root)` reports the active version; PyDeskUI never
-changes Tcl/Tk library paths at import time.
-
-## Desktop studio
-
-![PyDeskUI desktop studio](docs/images/studio-light.jpg)
-
-Run `python examples/gallery.py` to explore the complete component collection,
-three desktop scenes, and a live theme editor. See the [design system](docs/design-system.md).
+If PyDeskUI is useful to you, you can support its development on
+[Buy Me a Coffee](https://buymeacoffee.com/openhacking).

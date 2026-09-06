@@ -98,6 +98,7 @@ def test_theme_validation_export_state_and_cache(root):
         {"font_size": float("nan")},
         {"tokens": {"unknown": "red"}},
         {"tokens": {"primary": "invalid-color"}},
+        {"focus_ring": "sometimes"},
     ):
         with pytest.raises(ValueError):
             theme.configure(mode="dark", **update)
@@ -123,6 +124,25 @@ def test_theme_validation_export_state_and_cache(root):
     button.destroy()
     entry.destroy()
     copied.close()
+    theme.close()
+
+
+def test_focus_ring_tracks_keyboard_modality(root):
+    theme = Theme(root)
+    button = Button(root, theme=theme, text="Focus")
+    button.pack()
+    button.focus_force()
+    root.update()
+    theme._pointer_input()
+    assert not button.instate(("user1",))
+    theme._keyboard_input(type("Event", (), {"keysym": "Tab"})())
+    assert button.instate(("user1",))
+    theme.configure(focus_ring="never")
+    assert not button.instate(("user1",))
+    theme.configure(focus_ring="always")
+    assert button.instate(("user1",))
+    assert theme.export()["focus_ring"] == "always"
+    button.destroy()
     theme.close()
 
 
@@ -158,6 +178,24 @@ def test_gallery_all_pages_and_theme_changes(root):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     gallery = module.Gallery(root)
+    assert gallery.theme.mode == module._system_theme_mode(root)
+    root.event_generate("<<DarkAqua>>")
+    pump(root, 0.02)
+    assert gallery.theme.mode == "dark"
+    root.event_generate("<<LightAqua>>")
+    pump(root, 0.02)
+    assert gallery.theme.mode == "light"
+    if root.tk.call("tk", "windowingsystem") == "aqua":
+        gallery.toggle_mode()
+        pump(root, 0.02)
+        assert root.tk.call("wm", "attributes", root._w, "-appearance") == "darkaqua"
+        gallery.toggle_mode()
+        pump(root, 0.02)
+        assert root.tk.call("wm", "attributes", root._w, "-appearance") == "aqua"
+        gallery.reset_theme()
+        pump(root, 0.02)
+        assert root.tk.call("wm", "attributes", root._w, "-appearance") == "aqua"
+        assert gallery.theme.mode == module._system_theme_mode(root)
     for mode in ("light", "dark"):
         gallery.theme.configure(mode=mode)
         for key, _, _ in module.PAGES:
@@ -174,6 +212,13 @@ def test_gallery_all_pages_and_theme_changes(root):
     root.geometry("900x640")
     pump(root, 0.05)
     assert not gallery.theme_visible
+    gallery.show_page("layout")
+    pump(root, 0.05)
+    assert int(float(gallery.pages_host.cget("height"))) == gallery.body.winfo_reqheight()
+    assert gallery.viewport.canvas.yview()[1] < 1
+    before = gallery.viewport.canvas.yview()
+    gallery.viewport._wheel(type("Event", (), {"delta": -1, "state": 0, "num": None})())
+    assert gallery.viewport.canvas.yview() != before
     gallery.destroy()
 
 

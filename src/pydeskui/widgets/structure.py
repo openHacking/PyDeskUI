@@ -398,15 +398,28 @@ class ScrollArea(Frame):
 
     Parent widgets to ``content``. ``horizontal=False`` fits content to viewport
     width; True allows its requested width to overflow. Arrow/Page/Home/End work
-    on the viewport. Wheels over ordinary descendants scroll this area; native
-    scrollable controls and nested ScrollAreas retain their own wheel handling.
-    Per-instance toplevel bindings are removed on destruction.
+    on the viewport. Wheels over ordinary descendants scroll this area. Native
+    scrollable controls keep the wheel while they can move, then hand it to the
+    parent at their boundary; nested ScrollAreas retain their own wheel handling.
+    Per-instance toplevel bindings are removed on destruction. A nonzero
+    ``resize_debounce_ms`` keeps expensive child reflow off the live-resize path.
     """
 
-    def __init__(self, master, *, horizontal=False, theme=None, **options):
+    def __init__(
+        self,
+        master,
+        *,
+        horizontal=False,
+        resize_debounce_ms=0,
+        theme=None,
+        **options,
+    ):
+        if not isinstance(resize_debounce_ms, int) or resize_debounce_ms < 0:
+            raise ValueError("resize_debounce_ms must be a nonnegative integer")
         self._wheel_bindings = []
         self._layout_job = None
         self._layout_signature = None
+        self.resize_debounce_ms = resize_debounce_ms
         super().__init__(master, theme=theme, **options)
         self.horizontal = bool(horizontal)
         self.canvas = tk.Canvas(
@@ -481,6 +494,18 @@ class ScrollArea(Frame):
                 self.yscrollbar.grid_remove()
 
     def _queue_layout(self, event=None):
+        if (
+            event is not None
+            and event.widget is self.canvas
+            and self.resize_debounce_ms
+        ):
+            if self._layout_job is not None:
+                try:
+                    self.after_cancel(self._layout_job)
+                except tk.TclError:
+                    pass
+            self._layout_job = self.after(self.resize_debounce_ms, self._layout)
+            return
         if self._layout_job is None:
             self._layout_job = self.after_idle(self._layout)
 
@@ -515,20 +540,50 @@ class ScrollArea(Frame):
         view("scroll", units, "units")
         return "break" if view() != before else None
 
+    @staticmethod
+    def _wheel_direction(event):
+        if getattr(event, "num", None) in (4, 5):
+            return -1 if event.num == 4 else 1
+        delta = getattr(event, "delta", 0)
+        if not delta:
+            return 0
+        return -1 if delta > 0 else 1
+
+    def _native_can_scroll(self, widget, event):
+        horizontal = bool(getattr(event, "state", 0) & 1)
+        view = getattr(widget, "xview" if horizontal else "yview", None)
+        if view is None:
+            return False
+        try:
+            first, last = map(float, view())
+        except (tk.TclError, TypeError, ValueError):
+            return False
+        direction = self._wheel_direction(event)
+        if direction < 0:
+            return first > 0
+        if direction > 0:
+            return last < 1
+        return True
+
     def _subtree_wheel(self, event):
         # The toplevel bindtag follows each widget's instance and native class
         # bindings. New descendants therefore work without polling or retagging.
+        owner = event.widget
+        while isinstance(owner, tk.Misc):
+            if isinstance(owner, ScrollArea):
+                if owner is not self:
+                    return None
+                break
+            owner = owner.master
         widget = event.widget
         while isinstance(widget, tk.Misc):
             if widget is self.canvas or widget is self.content:
                 return self._wheel(event)
             if widget is self or isinstance(widget, ScrollArea):
                 return None
+            if widget.winfo_class() in {"Text", "Treeview", "Listbox", "Canvas"}:
+                return None if self._native_can_scroll(widget, event) else self._wheel(event)
             if widget.winfo_class() in {
-                "Text",
-                "Treeview",
-                "Listbox",
-                "Canvas",
                 "Scrollbar",
                 "TScrollbar",
                 "Spinbox",
@@ -613,7 +668,12 @@ class Table(Tree):
         options.setdefault("show", "headings")
         super().__init__(master, columns=columns, theme=theme, **options)
         for column in columns:
-            self.heading(column, text=column, command=partial(self.request_sort, column))
+            self.heading(
+                column,
+                text=column,
+                anchor="w",
+                command=partial(self.request_sort, column),
+            )
 
     def request_sort(self, column):
         """Request sorting and update the indicator without mutating row data."""

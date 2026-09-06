@@ -9,7 +9,9 @@ class Owned:
     def _own(self, master, theme):
         self.theme = resolve_theme(master, theme)
         self.theme._widgets.add(self)
+        self.theme._register_toplevel(self)
         self._owned_binding = cast(Any, self).bind("<Destroy>", self._released, add="+")
+        self.theme._apply_focus_visibility()
 
     def _released(self, event):
         if event.widget is self:

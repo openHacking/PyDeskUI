@@ -42,9 +42,10 @@ parent widget's explicit theme. Contexts cannot cross Tcl interpreters.
 | `font_size` | Finite number 9–40 inclusive; default 13 logical pixels. |
 | `contrast` | `normal` (default), `high`. |
 | `reduced_motion` | Boolean, default `False`; does not add animation to static components. |
+| `focus_ring` | `auto` (default), `always`, or `never`; auto shows focus only for keyboard navigation. |
 
-Density drives button and entry spacing and table row height; it is not a global
-layout manager. Logical dimensions use the current Tk scaling through `px()`;
+Density drives button and entry spacing, tab height, table rows and table headings;
+it is not a global layout manager. Logical dimensions use the current Tk scaling through `px()`;
 the library does not change global Tk scaling. Explicit native dimensions and
 padding remain caller-controlled, and native text widths remain character-based.
 Card derives its radius from `Theme.radius`: 10 at the default 6, capped at 12.
@@ -109,6 +110,22 @@ Frames, cards, sidebars and toolbars host caller-supplied children. Tabs, trees
 and split panes retain their ttk APIs. ScrollArea and popup/panel composites
 expose `.content` as the child parent. Menu and overlay state belongs to the
 creating widget; applications continue to own domain actions.
+
+Select lists and menus render inside the owning application window so rounded
+corners reveal the underlying application surface and window stacking cannot be
+split by another process. Native popup and dialog windows inherit the active
+Theme appearance. Toast feedback defaults to a three-item bottom-right in-window
+stack, while explicit anchor or screen-coordinate placement remains available.
+
+Tabs use a compact muted strip with rounded selected, hover and keyboard-focus
+states. Tree disclosure indicators keep a larger text gutter and 20 logical-pixel
+indent. Table headings are left-aligned by default with density-aware vertical
+padding; callers may override native heading options.
+
+Wheel input over Text, Treeview, Listbox and Canvas descendants stays with the
+child while it can move in that direction. At a boundary, or when the child has
+no overflow, the enclosing ScrollArea continues the gesture. Nested ScrollAreas
+remain isolated from their ancestors, as do controls whose wheel changes a value.
 
 ## Boundaries and review
 

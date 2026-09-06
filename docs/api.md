@@ -35,7 +35,7 @@ Proposed exports `ImageView(master, *, theme=None)` and `ImageSelection(master, 
 
 ## Theme API
 
-`Theme(master, *, mode="light", accent=None, reduced_motion=False, translator=None)` creates a scoped context. `mode` is light or dark; system theme detection is an application/platform-adapter responsibility. Methods: `configure(mode=..., accent=..., reduced_motion=...)`, `close()`.
+`Theme(master, *, mode="light", accent=None, reduced_motion=False, focus_ring="auto", translator=None)` creates a scoped context. `mode` is light or dark; `focus_ring` is `auto`, `always`, or `never`. System theme detection is an application/platform-adapter responsibility. Methods: `configure(mode=..., accent=..., reduced_motion=..., focus_ring=...)`, `close()`.
 
 A widget's `theme=None` selects the interpreter's default PyDeskUI light context. Explicit Theme contexts allow two independently themed sections. Context style names include a unique context prefix and never modify bare `TButton` or `TEntry`. Closing a context with live widgets raises `RuntimeError`; destroy widgets first. Tk native surfaces such as OS file dialogs may not follow custom colors.
 

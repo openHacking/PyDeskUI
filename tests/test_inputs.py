@@ -203,6 +203,13 @@ def test_popup_keyboard_commit_cancel_and_native_value_api(root, constructor):
     root.update()
     assert widget._popup is not None
     assert widget._listbox.curselection() == (1,)
+    assert widget._listbox._rows[1][2].cget("text") == "✓"
+    active_row = widget._listbox._rows[1][0]
+    assert active_row.instate(("selected",))
+    assert "select.option" in str(widget.theme.style.layout(active_row.cget("style")))
+    active_image = widget.theme._images[widget.theme._image_key("select.option.active")]
+    assert active_image.transparency_get(0, 0)
+    assert widget._listbox._row_height >= widget.theme.px(28)
     widget._listbox.event_generate("<Down>")
     widget._listbox.event_generate("<Return>")
     root.update()
@@ -273,15 +280,24 @@ def test_outside_focus_tab_and_grab_restoration(root):
     root.update()
     dialog.grab_set()
     widget.open_popup()
-    popup = widget._popup
-    assert root.grab_current() is popup
-    widget._outside_click(SimpleNamespace(x_root=-1, y_root=-1))
+    assert widget._popup is not None
+    assert root.grab_current() is dialog
+    assert widget.instate(("user2",))
+    dialog.event_generate(
+        "<ButtonPress-1>",
+        x=-100,
+        y=-100,
+    )
+    root.update()
     assert widget._popup is None and root.grab_current() is dialog
+    assert not widget.instate(("user2",))
+    assert root.focus_get() is not widget
     widget.open_popup()
     key(widget, "Tab")
     root.update()
     assert root.focus_get() is next_entry
     widget.open_popup()
+    root.update()
     next_entry.focus_force()
     root.update()
     assert widget._popup is None
@@ -326,9 +342,135 @@ def test_popup_mouse_selection_and_empty_values(root):
     widget.configure(values=("a", "b"))
     widget.open_popup()
     root.update()
-    x, y, width, height = widget._listbox.bbox(1)
+    assert widget._popup.winfo_toplevel() is root
+    assert widget._popup.winfo_rootx() >= root.winfo_rootx()
+    assert widget._popup.winfo_rooty() >= root.winfo_rooty()
+    assert (
+        widget._popup.winfo_rootx() + widget._popup.winfo_width()
+        <= root.winfo_rootx() + root.winfo_width()
+    )
+    popup_image = widget.theme._images[widget.theme._image_key("overlay.popup")]
+    assert popup_image.transparency_get(0, 0)
+    x, y, width, height = widget._listbox.choice_bbox(1)
     widget._choose_click(SimpleNamespace(x=x + 1, y=y + height // 2))
     assert widget.get() == "b" and widget._popup is None
+
+
+def test_popup_first_visible_frame_has_final_row_layout(root):
+    widget = show(root, Select(root, values=("One", "Two"), width=30))
+    widget.current(0)
+    root.update()
+    widget.open_popup()
+    listbox = widget._listbox
+    check = listbox._rows[0][2]
+    assert int(widget._popup.place_info()["width"]) == widget.winfo_width()
+    assert int(listbox.cget("width")) == widget.winfo_width() - 8
+    root.update_idletasks()
+    first_visible_frame = (
+        listbox.winfo_width(),
+        listbox._content.winfo_width(),
+        check.winfo_x(),
+    )
+    assert first_visible_frame[0] > 1
+    assert first_visible_frame[1] == first_visible_frame[0]
+    root.update()
+    assert (
+        listbox.winfo_width(),
+        listbox._content.winfo_width(),
+        check.winfo_x(),
+    ) == first_visible_frame
+
+
+def test_opening_press_is_not_treated_as_an_outside_click(root, monkeypatch):
+    widget = show(root, Select(root, values=("JavaScript", "TypeScript")))
+    refreshes = []
+    monkeypatch.setattr(widget, "_refresh_theme", lambda: refreshes.append(True))
+    monkeypatch.setattr(
+        root,
+        "update_idletasks",
+        lambda: pytest.fail("opening a Select must not flush application-wide idle work"),
+    )
+    widget.open_popup()
+    popup = widget._popup
+    assert popup is not None
+
+    # A real pointer press continues to the host binding installed by
+    # open_popup(). Replaying that tail of the same event must leave the list
+    # open; a genuinely external coordinate must still close it.
+    result = widget._outside_click(
+        SimpleNamespace(
+            x_root=widget.winfo_rootx() + widget.winfo_width() // 2,
+            y_root=widget.winfo_rooty() + widget.winfo_height() // 2,
+        )
+    )
+    assert result is None
+    assert widget._popup is popup
+    assert refreshes == []
+
+    widget._outside_click(SimpleNamespace(x_root=-10_000, y_root=-10_000))
+    assert widget._popup is None
+
+
+def test_popup_sizes_scrollbar_without_a_synchronous_layout_flush(root):
+    widget = show(root, Select(root, values=tuple(range(20)), height=3, width=20))
+    widget.open_popup()
+    popup = widget._popup
+    listbox = widget._listbox
+    assert popup is not None and listbox is not None
+    placed_width = int(popup.place_info()["width"])
+    placed_height = int(popup.place_info()["height"])
+    assert placed_width >= widget.winfo_width()
+    assert placed_width <= root.winfo_width()
+    assert placed_height == listbox.winfo_reqheight() + 8
+    root.update_idletasks()
+    assert popup.winfo_width() == placed_width
+    assert popup.winfo_height() == placed_height
+
+
+def test_popup_focus_waits_for_opening_pointer_dispatch(root):
+    theme = Theme(root)
+    widget = show(root, Select(root, theme=theme, values=("JavaScript", "TypeScript")))
+    widget.focus_force()
+    root.update()
+
+    widget.open_popup()
+    popup = widget._popup
+    listbox = widget._listbox
+    assert popup is not None and listbox is not None
+    assert root.focus_get() is widget
+
+    # Reproduce the host-level handler that runs after the Select's own
+    # ButtonPress callback. It must still see the click as belonging to the
+    # focused Select, not schedule a blur that immediately closes the list.
+    theme._pointer_input(
+        SimpleNamespace(
+            widget=widget,
+            x_root=widget.winfo_rootx() + 1,
+            y_root=widget.winfo_rooty() + 1,
+        )
+    )
+    root.update()
+    assert widget._popup is popup
+    assert root.focus_get() is listbox
+
+    widget.close_popup()
+    widget.open_popup()
+    assert widget._popup_focus_job is not None
+    widget.close_popup()
+    root.update()
+    assert widget._popup_focus_job is None
+
+
+def test_select_opens_on_first_pointer_press(root):
+    widget = show(root, Select(root, values=("JavaScript", "TypeScript")))
+    widget.event_generate(
+        "<ButtonPress-1>",
+        x=widget.winfo_width() // 2,
+        y=widget.winfo_height() // 2,
+    )
+    root.update()
+    assert widget._popup is not None
+    assert root.focus_get() is widget._listbox
 
 
 def test_switch_pill_assets_are_scoped_and_refresh(root):
@@ -443,6 +585,7 @@ def test_chevron_image_refresh_and_mouse_target(root):
     widget.event_generate("<Button-1>", x=x, y=y)
     root.update()
     assert widget._popup is not None
+    assert widget.instate(("user2",))
     key(widget, "Escape")
     widget.state(("disabled",))
     widget.event_generate("<Button-1>", x=x, y=y)

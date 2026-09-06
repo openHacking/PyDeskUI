@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Restyled Tabs, Tree disclosure spacing and Table headings with compact
+  shadcn-inspired hierarchy and density-aware metrics.
+- Let native scrolling children hand wheel input to an enclosing ScrollArea when
+  they have no overflow or reach a directional boundary.
+- Sized the Gallery viewport from the active page so resized content remains scrollable.
+- Coalesced responsive Gallery layout and reduced cached-page resize work.
+- Added keyboard-aware focus-ring policies to Theme.
+- Restyled choice and menu popups with rounded themed surfaces and cleaner rows.
+- Dismissed interactive popups on focus loss without stealing the new focus.
+
 ## 0.2.0 (unreleased)
 
 - Require Python 3.13+ linked to Tcl/Tk 9.0+ and reject older Tk runtimes.
@@ -22,6 +34,11 @@
 - Add semantic light/dark themes, density, radius, font, contrast and token configuration export.
 - Replace inherited control chrome with scoped antialiased elements and opaque Aqua-compatible surfaces.
 - Add the input, structure, data, overlay and feedback component collection.
+- Keep selection lists and menus attached to their application window, synchronize
+  native popup appearance with light/dark themes, and stack up to three Toasts in
+  the application bottom-right corner by default. Select rows are fully laid out
+  before the popup's first visible frame to avoid text and checkmark flicker;
+  opening no longer flushes application-wide idle layout work.
 - Add a desktop studio with three application scenes, component examples and live theme editing.
 - Preserve variable ownership, native editing and caller-owned event loops; keep runtime dependencies empty.
 - Add platform CI jobs, native integration tests and clean-wheel verification.
