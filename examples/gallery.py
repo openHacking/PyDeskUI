@@ -125,14 +125,13 @@ class Gallery(Frame):
         self._job = None
         self._progress = 0
         self._build_shell()
-        # Widget construction is cheap before the first native paint. Prebuild
-        # each page once so the first navigation has the same fast path as all
-        # later switches, then leave Settings on top.
+        # Prebuild each page while immediately unmapping the previous one.
+        # Widget construction is cheap; keeping inactive pages mapped is what
+        # makes Aqua's first geometry pass and later resizes expensive.
         for key, _, _ in PAGES:
             self.show_page(key)
         self.show_page("settings")
         self.bind("<Configure>", self._responsive, add="+")
-        self.after_idle(self._sync_all_page_heights)
         self.after_idle(self._arm_resize)
         self.after_idle(self._sync_system_theme)
         self._refresh_theme()
@@ -442,7 +441,7 @@ class Gallery(Frame):
                 self._unmap_inactive_pages()
             self._responsive_width = event.width
             if self._responsive_job is None:
-                self._responsive_job = self.after_idle(self._apply_responsive)
+                self._responsive_job = self.after(24, self._apply_responsive)
 
     def _arm_resize(self):
         self._resize_armed = True
@@ -587,6 +586,9 @@ class Gallery(Frame):
         self.page = key
         if previous in self.nav_buttons and previous != key:
             self.nav_buttons[previous].state(("!selected",))
+        previous_page = self._page_views.get(previous)
+        if previous_page is not None and previous != key:
+            previous_page.grid_remove()
         self.nav_buttons[key].state(("selected",))
         if key in self._page_views:
             self.body = self._page_views[key]

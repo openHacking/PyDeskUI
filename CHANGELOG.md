@@ -1,6 +1,20 @@
 # Changelog
 
+## 0.2.2
+
+- Add semantic `Surface` roles and typography variants for application shells.
+- Expose reusable display, title, section, muted, and body font styles through `Theme.fonts`.
+- Add `CodeEditor` with line numbers and cursor status for structured-text tools.
+- Add optional button icons, `NavigationItem`, and search icon/shortcut affordances.
+- Normalize Aqua against Tk's 96-DPI baseline to prevent duplicate Retina scaling.
+- Avoid Aqua's high-cost stretched SVG card surfaces, cache packaged icon sources,
+  and keep inactive Gallery pages out of live geometry passes.
+
 ## Unreleased
+
+## 0.2.1
+
+- Add reusable `CommandPalette` and trusted-image `ImageCompareView` compound primitives.
 
 ## 0.2.0
 

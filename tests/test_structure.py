@@ -70,6 +70,25 @@ def test_tokens_and_custom_style_are_isolated(root):
     assert custom.cget("style") == "User.TFrame"
 
 
+def test_semantic_surface_and_typography_follow_theme(root):
+    theme = Theme(
+        root,
+        tokens={"background": "#f7f9fc", "muted_foreground": "#687386"},
+    )
+    canvas = s.Surface(root, role="background", theme=theme)
+    muted = s.Label(
+        canvas, text="Supporting copy", variant="muted", surface="background", theme=theme
+    )
+    title = s.Label(canvas, text="Page title", variant="title", surface="background", theme=theme)
+    assert theme.style.lookup(canvas.cget("style"), "background") == "#f7f9fc"
+    assert theme.style.lookup(muted.cget("style"), "foreground") == "#687386"
+    assert theme.style.lookup(title.cget("style"), "font") == str(theme.fonts["title"])
+    muted.destroy()
+    title.destroy()
+    canvas.destroy()
+    theme.close()
+
+
 def test_native_collections_tabs_and_split(root):
     table = s.Table(root, columns=("name", "value"))
     table.insert("", "end", iid="row", values=("世界", 2))
@@ -140,8 +159,12 @@ def test_lightweight_card_refresh_and_host_theme(root):
     card.pack(fill="both", expand=True)
     s.Label(card, text="Card content").pack()
     root.update()
-    element = theme.name("portable.Frame.border")
-    assert theme.style.layout(card.cget("style"))[0][0] == element
+    if root.tk.call("tk", "windowingsystem") == "aqua":
+        assert theme.style.layout(card.cget("style"))[0][0] == theme.name(
+            "portable.Frame.border"
+        )
+    else:
+        assert "rounded-surface.card" in theme.style.layout(card.cget("style"))[0][0]
     assert theme.style.lookup(card.cget("style"), "bordercolor") == theme.tokens["border"]
     theme.configure(tokens={"card": "#123456", "border": "#abcdef"})
     assert theme.style.lookup(card.cget("style"), "background") == "#123456"
@@ -154,7 +177,12 @@ def test_lightweight_card_refresh_and_host_theme(root):
         target = next(name for name in theme.style.theme_names() if name != original)
         theme.style.theme_use(target)
         root.update()
-        assert theme.style.layout(card.cget("style"))[0][0] == element
+        if root.tk.call("tk", "windowingsystem") == "aqua":
+            assert theme.style.layout(card.cget("style"))[0][0] == theme.name(
+                "portable.Frame.border"
+            )
+        else:
+            assert "rounded-surface.card" in theme.style.layout(card.cget("style"))[0][0]
     finally:
         theme.style.theme_use(original)
         root.update()
@@ -200,9 +228,7 @@ def test_shadcn_inspired_collection_metrics_follow_density(root):
     style = theme.style
     for density, heading_y in (("compact", 8), ("default", 10), ("comfortable", 12)):
         theme.configure(density=density)
-        heading_padding = root.tk.splitlist(
-            style.lookup(theme.name("Treeview.Heading"), "padding")
-        )
+        heading_padding = root.tk.splitlist(style.lookup(theme.name("Treeview.Heading"), "padding"))
         assert tuple(map(int, heading_padding)) == (theme.px(8), theme.px(heading_y))
         assert str(style.lookup(theme.name("Treeview.Heading"), "anchor")) == "w"
         assert theme.name("portable.Treeheading.padding") in str(
@@ -221,9 +247,7 @@ def test_shadcn_inspired_collection_metrics_follow_density(root):
         assert theme._images[gap_key].width() == theme.px(8)
         assert "Treeitem.indicator" in item_layout
         assert int(style.lookup(theme.name("Treeview.Item"), "indicatormargins")) == 0
-        assert theme.name("notebook.tab.slot") in str(
-            style.layout(theme.name("TNotebook.Tab"))
-        )
+        assert theme.name("notebook.tab.slot") in str(style.layout(theme.name("TNotebook.Tab")))
     assert str(table.heading("Name", "anchor")) == "w"
     table.heading("Name", anchor="e")
     assert str(table.heading("Name", "anchor")) == "e"
@@ -505,18 +529,21 @@ def test_image_surfaces_and_card_border_refresh(root):
             )
             assert layout[0][0] == expected
             assert theme.style.lookup(widget.cget("style"), "background") == theme.tokens[token]
-        assert theme.style.layout(card.cget("style"))[0][0] == theme.name(
-            "portable.Frame.border"
-        )
+        if root.tk.call("tk", "windowingsystem") == "aqua":
+            assert theme.style.layout(card.cget("style"))[0][0] == theme.name(
+                "portable.Frame.border"
+            )
+        else:
+            assert "rounded-surface.card" in theme.style.layout(card.cget("style"))[0][0]
         assert custom.cget("style") == "User.TFrame"
 
 
-def test_aqua_logical_scale_one(root):
+def test_aqua_default_logical_scale_one(root):
     if root.tk.call("tk", "windowingsystem") != "aqua":
         pytest.skip("Aqua baseline check")
     old = root.tk.call("tk", "scaling")
     try:
-        root.tk.call("tk", "scaling", 1.0)
+        root.tk.call("tk", "scaling", 96 / 72)
         theme = Theme(root)
         icon = s.Icon(root, size=20, theme=theme)
         assert theme.scale == pytest.approx(1, abs=0.01)

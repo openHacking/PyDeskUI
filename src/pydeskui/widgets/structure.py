@@ -19,6 +19,7 @@ from ._base import Owned
 
 __all__ = [
     "Frame",
+    "Surface",
     "Label",
     "Card",
     "Separator",
@@ -87,14 +88,67 @@ class Frame(Owned, ttk.Frame):
         self._own(master, theme)
 
 
+class Surface(Frame):
+    """Semantic application surface with an explicit color role.
+
+    This is intentionally layout-neutral: callers own geometry while PyDeskUI
+    owns the scoped background, foreground and optional boundary.
+    """
+
+    _roles = frozenset({"background", "card", "sidebar", "accent", "muted"})
+
+    def __init__(
+        self, master, *, role="background", bordered=False, padding=0, theme=None, **options
+    ):
+        if role not in self._roles:
+            raise ValueError("Invalid surface role")
+        theme = resolve_theme(master, theme)
+        self.role, self.bordered, self.padding = role, bool(bordered), padding
+        self._role_style = f"Surface.{role}.{id(self):x}.{theme.name('TFrame')}"
+        options.setdefault("style", self._role_style)
+        super().__init__(master, theme=theme, **options)
+        self._refresh_theme()
+
+    def _refresh_theme(self):
+        token = self.role
+        if hasattr(self.theme, "surface_style"):
+            self.theme.surface_style(self._role_style, token)
+        self.theme.style.configure(
+            self._role_style,
+            background=_color(self.theme, token),
+            bordercolor=_color(self.theme, "border"),
+            borderwidth=_px(self.theme, 1) if self.bordered else 0,
+            relief="solid" if self.bordered else "flat",
+            padding=self.padding,
+        )
+
+
 class Label(Owned, ttk.Label):
     """Native text/image label, including textvariable and underline support."""
 
-    def __init__(self, master, *, theme=None, **options):
+    _variants = frozenset({"body", "muted", "section", "title", "display"})
+
+    def __init__(self, master, *, variant="body", surface="card", theme=None, **options):
+        if variant not in self._variants:
+            raise ValueError("Invalid label variant")
+        if surface not in Surface._roles:
+            raise ValueError("Invalid label surface")
         theme = resolve_theme(master, theme)
-        options.setdefault("style", theme.name("TLabel"))
+        self._text_variant, self.surface = variant, surface
+        self._variant_style = theme.name(f"{surface}.{variant}.TLabel")
+        options.setdefault("style", self._variant_style)
         super().__init__(master, **options)
         self._own(master, theme)
+        self._refresh_theme()
+
+    def _refresh_theme(self):
+        foreground = "muted_foreground" if self._text_variant == "muted" else "foreground"
+        self.theme.surface_style(self._variant_style, self.surface, label=True)
+        self.theme.style.configure(
+            self._variant_style,
+            foreground=_color(self.theme, foreground),
+            font=self.theme.fonts.get(self._text_variant, self.theme.font),
+        )
 
 
 class _Surface(Frame):
@@ -134,11 +188,11 @@ class Card(_Surface):
     def _refresh_theme(self):
         super()._refresh_theme()
         theme = self.theme
+        if hasattr(theme, "rounded_surface_style"):
+            theme.rounded_surface_style(self._role_style, "card", bordered=True)
         theme.style.configure(
             self._role_style,
-            borderwidth=_px(theme, 1),
-            bordercolor=_color(theme, "border"),
-            relief="solid",
+            padding=_px(theme, self._padding),
         )
 
 
@@ -209,7 +263,7 @@ class Badge(Label):
 class Icon(Owned, tk.Canvas):
     """Decorative SVG icon; pair it with visible text or an accessible button.
 
-    Names: plus, minus, check, x, menu, search, chevron-left/right/up/down.
+    Names include navigation, file actions, search, and chevrons.
     ``set_icon(name)`` changes the drawing. Canvas options remain available.
     """
 
@@ -225,6 +279,15 @@ class Icon(Owned, tk.Canvas):
             "chevron-right",
             "chevron-up",
             "chevron-down",
+            "home",
+            "plugin",
+            "settings",
+            "json",
+            "image",
+            "copy",
+            "download",
+            "upload",
+            "trash",
         }
     )
 
@@ -494,11 +557,7 @@ class ScrollArea(Frame):
                 self.yscrollbar.grid_remove()
 
     def _queue_layout(self, event=None):
-        if (
-            event is not None
-            and event.widget is self.canvas
-            and self.resize_debounce_ms
-        ):
+        if event is not None and event.widget is self.canvas and self.resize_debounce_ms:
             if self._layout_job is not None:
                 try:
                     self.after_cancel(self._layout_job)

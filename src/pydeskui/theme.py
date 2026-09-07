@@ -5,6 +5,7 @@ import tkinter as tk
 import weakref
 from collections import OrderedDict
 from tkinter import font, ttk
+from typing import Literal
 
 from .i18n import TranslationContext
 from .resources import check_runtime, svg_photo
@@ -122,6 +123,7 @@ class Theme:
         self.reduced_motion = False
         self._overrides = {}
         self.font = font.Font(master, family=self.font_family, size=-13)
+        self.fonts = {}
         self.configure(
             mode=mode,
             accent=accent,
@@ -215,9 +217,25 @@ class Theme:
         self._apply_window_appearance(self.master.winfo_toplevel())
         for host in tuple(self._input_bindings):
             self._apply_window_appearance(host)
-        baseline = 1.0 if self.master.tk.call("tk", "windowingsystem") == "aqua" else 96 / 72
+        # Tk reports its default 96-DPI logical scale as 4/3 on every supported
+        # platform, including Aqua. Treating Aqua's baseline as 1.0 scaled all
+        # dimensions and negative-pixel fonts a second time on Retina displays.
+        baseline = 96 / 72
         self.scale = max(0.75, float(self.master.tk.call("tk", "scaling")) / baseline)
         self.font.configure(family=family, size=-self.px(size))
+        specs: dict[str, tuple[float, Literal["normal", "bold"]]] = {
+            "body": (size, "normal"),
+            "muted": (size, "normal"),
+            "section": (16, "bold"),
+            "title": (28, "bold"),
+            "display": (36, "bold"),
+        }
+        for name, (font_size, weight) in specs.items():
+            themed = self.fonts.get(name)
+            if themed is None:
+                themed = font.Font(root=self.master)
+                self.fonts[name] = themed
+            themed.configure(family=family, size=-self.px(font_size), weight=weight)
         self.colors = dict(
             surface=colors["card"],
             text=colors["foreground"],
@@ -298,8 +316,19 @@ class Theme:
 
     def _keyboard_input(self, event):
         if event.keysym in {
-            "Tab", "ISO_Left_Tab", "Up", "Down", "Left", "Right",
-            "Home", "End", "Prior", "Next", "Return", "KP_Enter", "space",
+            "Tab",
+            "ISO_Left_Tab",
+            "Up",
+            "Down",
+            "Left",
+            "Right",
+            "Home",
+            "End",
+            "Prior",
+            "Next",
+            "Return",
+            "KP_Enter",
+            "space",
         }:
             self._set_keyboard_navigation(True)
 
@@ -414,9 +443,7 @@ class Theme:
         active = self._tile("menu.item.active", c["accent"], c["accent"], radius=radius)
         pressed = self._tile("menu.item.pressed", c["accent"], c["foreground"], radius=radius)
         focus = self._tile("menu.item.focus", c["accent"], c["ring"], 1, radius=radius)
-        disabled = self._tile(
-            "menu.item.disabled", c["popover"], c["popover"], radius=radius
-        )
+        disabled = self._tile("menu.item.disabled", c["popover"], c["popover"], radius=radius)
         states = [normal, ("disabled", disabled), ("pressed", pressed)]
         focus_spec = self._focus_spec(focus)
         if focus_spec is not None:
@@ -467,12 +494,8 @@ class Theme:
         """Return the rounded active-row surface used by Select popups."""
         c = self.tokens
         radius = max(2, min(self.radius, 4))
-        normal = self._tile(
-            "select.option", c["popover"], c["popover"], radius=radius
-        )
-        active = self._tile(
-            "select.option.active", c["accent"], c["accent"], radius=radius
-        )
+        normal = self._tile("select.option", c["popover"], c["popover"], radius=radius)
+        active = self._tile("select.option.active", c["accent"], c["accent"], radius=radius)
         element = self._element("select.option", [normal, ("selected", active)])
         name = self.name("SelectOption.TFrame")
         self.style.layout(name, [(element, {"sticky": "nsew"})])
@@ -609,9 +632,7 @@ class Theme:
             ("disabled", self._tile("entrydisabled", c["muted"], c["border"])),
             ("invalid", self._tile("entryinvalid", c["card"], c["destructive"], 2)),
         ]
-        focus_spec = self._input_focus_spec(
-            self._tile("entryfocus", c["card"], c["ring"], 2)
-        )
+        focus_spec = self._input_focus_spec(self._tile("entryfocus", c["card"], c["ring"], 2))
         if focus_spec is not None:
             entry_states.append(focus_spec)
         entry_element = self._element("entry.field", entry_states)
@@ -1022,9 +1043,7 @@ class Theme:
                         self.name("portable.Label.padding"),
                         {
                             "sticky": "nsew",
-                            "children": [
-                                (self.name("portable.Label.label"), {"sticky": "nsew"})
-                            ],
+                            "children": [(self.name("portable.Label.label"), {"sticky": "nsew"})],
                         },
                     )
                 ],
@@ -1040,6 +1059,33 @@ class Theme:
             foreground=self.tokens.get(token + "_foreground", self.tokens["foreground"]),
             font=self.font,
         )
+
+    def rounded_surface_style(self, name, token="card", *, bordered=True, radius=None):
+        """Install a scoped SVG-backed rounded surface for low-volume panels."""
+        if self.master.tk.call("tk", "windowingsystem") == "aqua":
+            # Stretching a nine-slice SVG across large native frames is very
+            # expensive in Tk 9/Aqua (hundreds of milliseconds per remount).
+            # Use the portable frame border there; other backends retain the
+            # rounded SVG surface.
+            self.surface_style(name, token)
+            self.style.configure(
+                name,
+                background=self.tokens[token],
+                bordercolor=self.tokens["border"] if bordered else self.tokens[token],
+                borderwidth=self.px(1) if bordered else 0,
+                relief="solid" if bordered else "flat",
+            )
+            return
+        edge = self.tokens["border"] if bordered else self.tokens[token]
+        image = self._tile(
+            f"rounded-surface.{token}.{int(bordered)}",
+            self.tokens[token],
+            edge,
+            radius=self.radius if radius is None else radius,
+        )
+        element = self._element(f"rounded-surface.{token}.{int(bordered)}", [image])
+        self.style.layout(name, [(element, {"sticky": "nsew"})])
+        self.style.configure(name, background=self.tokens[token], borderwidth=0, relief="flat")
 
     def _host_changed(self, event=None):
         if (
@@ -1080,6 +1126,7 @@ class Theme:
         self.master.unbind("<<ThemeChanged>>", self._theme_binding)
         self._images.clear()
         self._svg_icons.clear()
+        self.fonts.clear()
         self._image_specs.clear()
         self._surface_signatures.clear()
         for host, bindings in tuple(self._input_bindings.items()):

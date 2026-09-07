@@ -178,6 +178,8 @@ def test_gallery_all_pages_and_theme_changes(root):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     gallery = module.Gallery(root)
+    root.update()
+    assert sum(page.winfo_manager() == "grid" for page in gallery._page_views.values()) == 1
     assert gallery.theme.mode == module._system_theme_mode(root)
     root.event_generate("<<DarkAqua>>")
     pump(root, 0.02)

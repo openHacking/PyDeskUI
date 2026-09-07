@@ -15,6 +15,7 @@ from pydeskui import (
     Form,
     Item,
     ItemList,
+    NavigationItem,
     ProgressView,
     Scheduler,
     SearchEntry,
@@ -74,6 +75,32 @@ def test_parent_variables_and_native_options(root):
     button.state(["disabled"])
     button.invoke()
     assert count == [1]
+
+
+def test_button_optional_icon_and_position(root):
+    theme = Theme(root)
+    button = Button(root, text="Home", icon="home", icon_position="left", theme=theme)
+    button.pack()
+    root.update()
+    assert button.cget("icon") == "home"
+    assert button.cget("icon_position") == "left"
+    assert button.cget("image")
+    button.configure(icon="settings", icon_position="right")
+    assert button.cget("icon") == "settings"
+    assert str(button.cget("compound")) == "right"
+    button.configure(icon=None)
+    assert not button.cget("image")
+    with pytest.raises(ValueError):
+        button.configure(icon_position="middle")
+
+
+def test_navigation_item_selected_state(root):
+    item = NavigationItem(root, text="Home", icon="home")
+    assert not item.cget("selected")
+    assert item.cget("variant") == "ghost"
+    item.configure(selected=True)
+    assert item.cget("selected")
+    assert item.cget("variant") == "secondary"
 
 
 def test_pointer_focuses_entry_and_blank_click_blurs_it(root):

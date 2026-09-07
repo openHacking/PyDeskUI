@@ -138,7 +138,13 @@ class DetailView(Owned, ttk.Frame):
 
     def _refresh_theme(self):
         self.text.configure(
-            background=self.theme.colors["surface"],
+            # Code/result panes should read as a bounded work surface even when
+            # their parent card and the application canvas are both white.
+            background=(
+                self.theme.tokens["muted"]
+                if self._format == "code"
+                else self.theme.colors["surface"]
+            ),
             foreground=self.theme.colors["text"],
             insertbackground=self.theme.colors["text"],
             font="TkFixedFont" if self._format == "code" else self.theme.font,

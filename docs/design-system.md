@@ -22,8 +22,13 @@ card.pack(fill="both", expand=True, padx=16, pady=16)
 Label(card, text="Project name", theme=theme).pack(anchor="w")
 name = tk.StringVar(master=root)
 Entry(card, textvariable=name, placeholder="Untitled project", theme=theme).pack(fill="x")
-Button(card, text="Dark mode", variant="secondary", theme=theme,
-       command=lambda: theme.configure(mode="dark")).pack(anchor="e", pady=8)
+Button(
+    card,
+    text="Dark mode",
+    variant="secondary",
+    theme=theme,
+    command=lambda: theme.configure(mode="dark"),
+).pack(anchor="e", pady=8)
 root.mainloop()
 ```
 
@@ -80,11 +85,11 @@ foreground/background combinations or guarantee accessibility conformance.
 ```python
 theme.configure(tokens={"primary": "#2457a7", "primary_foreground": "#ffffff"})
 theme.configure(tokens={"ring": "#2457a7"})  # replaces the previous mapping
-theme.configure(tokens={})                   # clears all token overrides
-theme.configure(accent=None)                 # clears accent branding
-settings = theme.export()                    # Python dict, not JSON text
-copy = Theme(root, **settings)                # separate context, same interpreter
-copy.close()                                # no widgets use this context
+theme.configure(tokens={})  # clears all token overrides
+theme.configure(accent=None)  # clears accent branding
+settings = theme.export()  # Python dict, not JSON text
+copy = Theme(root, **settings)  # separate context, same interpreter
+copy.close()  # no widgets use this context
 ```
 
 Omitting tokens, or passing `tokens=None`, preserves existing overrides.
@@ -110,6 +115,13 @@ Frames, cards, sidebars and toolbars host caller-supplied children. Tabs, trees
 and split panes retain their ttk APIs. ScrollArea and popup/panel composites
 expose `.content` as the child parent. Menu and overlay state belongs to the
 creating widget; applications continue to own domain actions.
+
+`Surface` provides an explicit `background`, `card`, `sidebar`, `accent`, or
+`muted` host without taking over layout. `Label` accepts matching `surface=`
+and semantic `variant=` values (`body`, `muted`, `section`, `title`, `display`),
+so application hierarchy remains consistent across light and dark themes.
+`CodeEditor` composes native text editing with a synchronized line-number gutter
+and cursor status while exposing its underlying `.text` widget for tags.
 
 Select lists and menus render inside the owning application window so rounded
 corners reveal the underlying application surface and window stacking cannot be

@@ -1,12 +1,13 @@
 """Supported reusable widgets."""
 
-from .controls import Button, Entry, SearchEntry
+from .controls import Button, Entry, NavigationItem, SearchEntry
 from .form import FieldSpec, Form
 from .views import DetailView, Dialog, Item, ItemList, ProgressView
 
 __all__ = [
     "Button",
     "Entry",
+    "NavigationItem",
     "SearchEntry",
     "FieldSpec",
     "Form",
@@ -39,6 +40,7 @@ from .structure import (
     Separator,
     Sidebar,
     SplitPane,
+    Surface,
     Table,
     Tabs,
     Toolbar,
@@ -57,6 +59,7 @@ __all__ += [
     "Badge",
     "Card",
     "Frame",
+    "Surface",
     "Icon",
     "Label",
     "ScrollArea",

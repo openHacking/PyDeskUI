@@ -1,6 +1,7 @@
 """PyDeskUI 0.2: professional, explicit-parent Tk 9 components."""
 
 from .i18n import TranslationContext
+from .patterns import CodeEditor, CommandPalette, ImageCompareView
 from .resources import UnsupportedTkVersionError, check_runtime, load_image, load_svg
 from .scheduling import CancelHandle, Scheduler
 from .theme import Theme
@@ -13,17 +14,22 @@ from .widgets import (
     Form,
     Item,
     ItemList,
+    NavigationItem,
     ProgressView,
     SearchEntry,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.2.2"
 __all__ = [
     "Button",
+    "CommandPalette",
+    "CodeEditor",
     "Entry",
+    "NavigationItem",
     "SearchEntry",
     "Item",
     "ItemList",
+    "ImageCompareView",
     "DetailView",
     "FieldSpec",
     "Form",
@@ -62,6 +68,7 @@ from .widgets import (
     Slider,
     Spinbox,
     SplitPane,
+    Surface,
     Switch,
     Table,
     Tabs,
@@ -82,6 +89,7 @@ __all__ += [
     "DropdownMenu",
     "EmptyState",
     "Frame",
+    "Surface",
     "Icon",
     "Label",
     "Popover",

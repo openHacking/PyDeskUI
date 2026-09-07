@@ -1,11 +1,18 @@
 """Native controls with explicit parenting and scoped appearance."""
 
 import tkinter as tk
+from functools import lru_cache
+from importlib.resources import files
 from tkinter import ttk
 
 from ..scheduling import Scheduler
 from ..theme import resolve_theme
 from ._base import Owned
+
+
+@lru_cache(maxsize=64)
+def _icon_source(name):
+    return files("pydeskui").joinpath("assets", "icons", f"{name}.svg").read_bytes()
 
 
 class Button(Owned, ttk.Button):
@@ -19,16 +26,42 @@ class Button(Owned, ttk.Button):
         command=None,
         variant="default",
         size="medium",
+        icon=None,
+        icon_position="left",
         theme=None,
         **ttk_options,
     ):
         self._validate(variant, size)
+        if icon_position not in ("left", "right"):
+            raise ValueError("icon_position must be left or right")
         self.variant, self._size = variant, size
+        self.icon, self.icon_position = icon, icon_position
+        self._icon_image = None
         theme = resolve_theme(master, theme)
         ttk_options.setdefault("style", theme.name(f"{variant}.{size}.TButton"))
+        if icon:
+            ttk_options.setdefault("compound", icon_position)
         super().__init__(master, text=text, command=command, **ttk_options)
         self._own(master, theme)
         self.bind("<Return>", lambda event: self.invoke())
+        self._refresh_theme()
+
+    def _refresh_theme(self):
+        if not self.icon:
+            self._icon_image = None
+            super().configure(image="")
+            return
+        data = _icon_source(self.icon)
+        color = (
+            self.theme.tokens["primary_foreground"]
+            if self.variant == "primary"
+            else self.theme.tokens["foreground"]
+        )
+        rgb = tuple(round(value / 257) for value in self.winfo_rgb(color))
+        encoded = ("#%02x%02x%02x" % rgb).encode("ascii")
+        data = data.replace(b"currentColor", encoded).replace(b"#000001", encoded)
+        self._icon_image = self.theme.svg_icon(data, self.theme.px(18))
+        super().configure(image=self._icon_image, compound=self.icon_position)
 
     @staticmethod
     def _validate(variant, size):
@@ -50,19 +83,66 @@ class Button(Owned, ttk.Button):
         if isinstance(cnf, dict):
             kwargs = {**cnf, **kwargs}
             cnf = None
+        refresh_icon = False
         if "variant" in kwargs or "size" in kwargs:
             variant = kwargs.pop("variant", self.variant)
             size = kwargs.pop("size", self._size)
             self._validate(variant, size)
-            kwargs["style"] = self.theme.name(f"{variant}.{size}.TButton")
+            if (variant, size) != (self.variant, self._size):
+                kwargs["style"] = self.theme.name(f"{variant}.{size}.TButton")
+                refresh_icon = variant != self.variant
             self.variant, self._size = variant, size
+        if "icon" in kwargs:
+            icon = kwargs.pop("icon")
+            refresh_icon = refresh_icon or icon != self.icon
+            self.icon = icon
+        if "icon_position" in kwargs:
+            position = kwargs.pop("icon_position")
+            if position not in ("left", "right"):
+                raise ValueError("icon_position must be left or right")
+            refresh_icon = refresh_icon or position != self.icon_position
+            self.icon_position = position
+        result = super().configure(cnf, **kwargs)
+        if refresh_icon:
+            self._refresh_theme()
+        return result
+
+    config = configure
+
+    def cget(self, key):
+        if key in ("variant", "size", "icon", "icon_position"):
+            if key == "icon":
+                return self.icon
+            if key == "icon_position":
+                return self.icon_position
+            return self._size if key == "size" else self.variant
+        return super().cget(key)
+
+
+class NavigationItem(Button):
+    """Consistent icon-and-label navigation row with an explicit selected state."""
+
+    def __init__(self, master, *, selected=False, **options):
+        self.selected = bool(selected)
+        options.setdefault("variant", "secondary" if self.selected else "ghost")
+        super().__init__(master, **options)
+
+    def configure(self, cnf=None, **kwargs):
+        if isinstance(cnf, dict):
+            kwargs = {**cnf, **kwargs}
+            cnf = None
+        if "selected" in kwargs:
+            selected = bool(kwargs.pop("selected"))
+            if selected != self.selected:
+                self.selected = selected
+                kwargs["variant"] = "secondary" if selected else "ghost"
         return super().configure(cnf, **kwargs)
 
     config = configure
 
     def cget(self, key):
-        if key in ("variant", "size"):
-            return self._size if key == "size" else self.variant
+        if key == "selected":
+            return self.selected
         return super().cget(key)
 
 
@@ -80,6 +160,8 @@ class Entry(Owned, ttk.Entry):
         super().__init__(master, textvariable=self.variable, **ttk_options)
         self._own(master, theme)
         self.placeholder = placeholder
+        self._leading_width = getattr(self, "_leading_width", 0)
+        self._trailing_width = getattr(self, "_trailing_width", 0)
         self._hint = tk.Label(self, text=placeholder, anchor="w", borderwidth=0, takefocus=False)
         self._hint.bind("<Button-1>", lambda event: self.focus_set())
         self._hint_trace = self.variable.trace_add("write", self._update_hint)
@@ -90,12 +172,18 @@ class Entry(Owned, ttk.Entry):
         self._refresh_theme()
 
     def _update_hint(self, *args):
-        if self.placeholder and not self.variable.get() and self.focus_get() is not self:
+        if self.placeholder and not self.variable.get():
             self._hint.place(
-                x=self.theme.px(11),
+                x=self.theme.px(11) + self._leading_width,
                 rely=0.5,
                 anchor="w",
-                width=max(0, self.winfo_width() - self.theme.px(22)),
+                width=max(
+                    0,
+                    self.winfo_width()
+                    - self.theme.px(22)
+                    - self._leading_width
+                    - self._trailing_width,
+                ),
             )
         else:
             self._hint.place_forget()
@@ -122,17 +210,70 @@ class SearchEntry(Entry):
         textvariable=None,
         on_change=None,
         debounce_ms=150,
+        search_icon=True,
+        shortcut_hint="",
         theme=None,
         **ttk_options,
     ):
         if not isinstance(debounce_ms, int) or debounce_ms < 0:
             raise ValueError("debounce_ms must be a nonnegative integer")
         self.on_change, self.debounce_ms = on_change, debounce_ms
+        self.search_icon, self.shortcut_hint = bool(search_icon), shortcut_hint
+        self._leading_width = 24 if self.search_icon else 0
+        self._trailing_width = 54 if shortcut_hint else 0
         self._pending = None
         super().__init__(master, textvariable=textvariable, theme=theme, **ttk_options)
+        self._search_image = None
+        self._search_label = tk.Label(self, borderwidth=0, takefocus=False)
+        self._shortcut_label = tk.Label(
+            self, text=shortcut_hint, borderwidth=0, takefocus=False, padx=self.theme.px(5)
+        )
+        self._search_label.bind("<Button-1>", lambda event: self.focus_set())
+        self._shortcut_label.bind("<Button-1>", lambda event: self.focus_set())
         self._scheduler = Scheduler(self)
         self._trace = self.variable.trace_add("write", self._changed)
         self.bind("<Escape>", self._clear)
+        self._refresh_theme()
+        self._update_hint()
+
+    def _refresh_theme(self):
+        super()._refresh_theme()
+        if not hasattr(self, "_search_label"):
+            return
+        for label in (self._search_label, self._shortcut_label):
+            label.configure(
+                background=self.theme.tokens["card"],
+                foreground=self.theme.tokens["muted_foreground"],
+                font=self.theme.font,
+            )
+        if self.search_icon:
+            data = _icon_source("search")
+            rgb = tuple(
+                round(value / 257)
+                for value in self.winfo_rgb(self.theme.tokens["muted_foreground"])
+            )
+            encoded = ("#%02x%02x%02x" % rgb).encode("ascii")
+            self._search_image = self.theme.svg_icon(
+                data.replace(b"currentColor", encoded).replace(b"#000001", encoded),
+                self.theme.px(17),
+            )
+            self._search_label.configure(image=self._search_image)
+
+    def _update_hint(self, *args):
+        super()._update_hint(*args)
+        if not hasattr(self, "_search_label"):
+            return
+        empty = not self.variable.get()
+        if self.search_icon and empty:
+            self._search_label.place(x=self.theme.px(10), rely=0.5, anchor="w")
+        else:
+            self._search_label.place_forget()
+        if self.shortcut_hint and empty:
+            self._shortcut_label.place(
+                x=self.winfo_width() - self.theme.px(10), rely=0.5, anchor="e"
+            )
+        else:
+            self._shortcut_label.place_forget()
 
     def _clear(self, event=None):
         if (
@@ -167,11 +308,13 @@ class SearchEntry(Entry):
             raise ValueError("debounce_ms must be a nonnegative integer")
         self.debounce_ms = delay
         self.on_change = kwargs.pop("on_change", self.on_change)
+        self.search_icon = kwargs.pop("search_icon", self.search_icon)
+        self.shortcut_hint = kwargs.pop("shortcut_hint", self.shortcut_hint)
         return super().configure(cnf, **kwargs)
 
     config = configure
 
     def cget(self, key):
-        if key in ("on_change", "debounce_ms"):
+        if key in ("on_change", "debounce_ms", "search_icon", "shortcut_hint"):
             return getattr(self, key)
         return super().cget(key)
