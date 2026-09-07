@@ -31,7 +31,7 @@ installer or GUI side effects. Verify keyboard behavior and destruction with
 pending callbacks against the installed API before completing an integration.
 
 
-For professional desktop composition, use the 38 components listed in the
+For professional desktop composition, use the 39 components listed in the
 reference, including structure/data views, additional native inputs and owned
 overlays. Import public names from `pydeskui` or `pydeskui.widgets`; inspect the
 installed exports when working across revisions. Item and FieldSpec are data

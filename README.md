@@ -54,12 +54,12 @@ The caller owns the parent, domain state and event loop. All GUI operations run
 on the Tk thread. Importing the library never creates a root. Themes use scoped
 styles; widget destruction cancels owned work and retains caller variables.
 
-The `pydeskui.widgets` export surface contains 38 components (excluding data
+The `pydeskui.widgets` export surface contains 39 components (excluding data
 helpers and contexts):
 
 | Group | Components |
 |---|---|
-| Existing controls and views | Button, Entry, SearchEntry, ItemList, DetailView, Form, ProgressView, Dialog |
+| Existing controls and views | Button, Entry, SearchEntry, SegmentedControl, ItemList, DetailView, Form, ProgressView, Dialog |
 | Structure and data | Frame, Label, Card, Separator, Badge, Icon, Sidebar, Toolbar, Tabs, SplitPane, ScrollArea, Table, Tree |
 | Additional inputs | Textarea, Checkbox, RadioGroup, Switch, Select, Combobox, Slider, Spinbox |
 | Overlays and feedback | Tooltip, Popover, DropdownMenu, ContextMenu, Alert, Toast, EmptyState, Skeleton, Sheet |

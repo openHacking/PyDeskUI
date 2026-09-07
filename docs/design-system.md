@@ -100,7 +100,7 @@ Destroy widgets using a theme before calling its `close()`.
 
 ## Components and interaction
 
-The 38 components comprise eight existing controls/views, thirteen structural
+The 39 components comprise nine existing controls/views, thirteen structural
 components, eight additional inputs, and nine overlays/feedback components.
 `Item` and `FieldSpec` are data helpers and are not included in that count.
 

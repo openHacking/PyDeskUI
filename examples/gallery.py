@@ -29,6 +29,7 @@ from pydeskui import (
     RadioGroup,
     Scheduler,
     ScrollArea,
+    SegmentedControl,
     Select,
     Separator,
     Sheet,
@@ -937,6 +938,11 @@ class Gallery(Frame):
         box.set("Python")
         box.pack(side="left")
         Spinbox(row, theme=self.theme, from_=0, to=100, width=8).pack(side="left", padx=12)
+        SegmentedControl(
+            c,
+            values=(("list", "List"), ("grid", "Grid"), ("details", "Details")),
+            theme=self.theme,
+        ).pack(fill="x", pady=8)
         row = self.row(c)
         Checkbox(row, text="Include archived", theme=self.theme).pack(side="left")
         Switch(row, text="Auto save", theme=self.theme).pack(side="right")

@@ -19,6 +19,9 @@ Callback exceptions go to the application's `report_callback_exception`.
 - **Entry:** native get/insert/delete, validation and external StringVar ownership.
 - **SearchEntry:** debounced `on_change(text)`; Escape clears once; destruction
   removes its trace and pending callback. `debounce_ms` is a nonnegative integer.
+- **SegmentedControl:** one-of-many selection for strings or `(value, label)`
+  pairs. `get()` and `set(value, notify=False)` mirror the owned StringVar;
+  Left and Right move selection and notify the no-argument command.
 - **ItemList:** `set_items(Sequence[Item])` preserves selection by ID, rejects
   duplicates before mutation, and emits `on_select(id | None)` only on change.
   Arrow keys use native Treeview selection. Initial implementation is intended
@@ -84,7 +87,7 @@ Tk scaling without modifying the interpreter's global scaling.
 
 ## Structure and data components
 
-All 38 components listed here and above are available from `pydeskui.widgets`.
+All 39 components listed here and above are available from `pydeskui.widgets`.
 For example, `from pydeskui.widgets import Tree` uses the component export surface.
 
 All constructors below take positional `master` and optional keyword `theme`.

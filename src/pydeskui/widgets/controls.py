@@ -146,6 +146,93 @@ class NavigationItem(Button):
         return super().cget(key)
 
 
+class SegmentedControl(Owned, ttk.Frame):
+    """Compact single-selection control composed from themed buttons."""
+
+    def __init__(
+        self,
+        master,
+        *,
+        values=(),
+        variable=None,
+        command=None,
+        theme=None,
+        **ttk_options,
+    ):
+        theme = resolve_theme(master, theme)
+        if variable is not None and variable._tk is not master.tk:
+            raise ValueError("Variable belongs to a different interpreter")
+        options = tuple(values)
+        if not options:
+            raise ValueError("values must not be empty")
+        normalized = []
+        for option in options:
+            value, label = option if isinstance(option, tuple) else (option, option)
+            if not isinstance(value, str) or not value or not isinstance(label, str) or not label:
+                raise ValueError("values must contain strings or nonempty (value, label) pairs")
+            normalized.append((value, label))
+        identifiers = [value for value, _label in normalized]
+        if len(set(identifiers)) != len(identifiers):
+            raise ValueError("values must be unique")
+        ttk_options.setdefault("style", theme.name("TFrame"))
+        super().__init__(master, **ttk_options)
+        self._own(master, theme)
+        self.values = tuple(normalized)
+        self.variable = variable if variable is not None else tk.StringVar(master=master)
+        self.command = command
+        if self.variable.get() not in identifiers:
+            self.variable.set(identifiers[0])
+        self.buttons = []
+        for index, (value, label) in enumerate(self.values):
+            button = Button(
+                self,
+                text=label,
+                command=lambda item=value: self.set(item, notify=True),
+                variant="secondary" if value == self.variable.get() else "outline",
+                theme=theme,
+            )
+            button.grid(row=0, column=index, sticky="ew")
+            button.bind("<Left>", self._previous)
+            button.bind("<Right>", self._next)
+            self.columnconfigure(index, weight=1, uniform=f"segment-{id(self):x}")
+            self.buttons.append(button)
+        self._trace = self.variable.trace_add("write", self._sync)
+        self._sync()
+
+    def get(self):
+        return self.variable.get()
+
+    def set(self, value, *, notify=False):
+        if value not in {identifier for identifier, _label in self.values}:
+            raise ValueError(f"Unknown segment: {value!r}")
+        changed = value != self.variable.get()
+        self.variable.set(value)
+        if changed and notify and self.command:
+            self.command()
+
+    def _move(self, step):
+        identifiers = [value for value, _label in self.values]
+        index = identifiers.index(self.variable.get())
+        target = (index + step) % len(identifiers)
+        self.set(identifiers[target], notify=True)
+        self.buttons[target].focus_set()
+        return "break"
+
+    def _previous(self, _event):
+        return self._move(-1)
+
+    def _next(self, _event):
+        return self._move(1)
+
+    def _sync(self, *_args):
+        selected = self.variable.get()
+        for button, (value, _label) in zip(self.buttons, self.values):
+            button.configure(variant="secondary" if value == selected else "outline")
+
+    def _cleanup(self):
+        self.variable.trace_remove("write", self._trace)
+
+
 class Entry(Owned, ttk.Entry):
     """A native entry preserving a caller-owned StringVar and validation."""
 

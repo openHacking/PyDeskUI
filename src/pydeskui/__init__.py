@@ -17,6 +17,7 @@ from .widgets import (
     NavigationItem,
     ProgressView,
     SearchEntry,
+    SegmentedControl,
 )
 
 __version__ = "0.2.2"
@@ -27,6 +28,7 @@ __all__ = [
     "Entry",
     "NavigationItem",
     "SearchEntry",
+    "SegmentedControl",
     "Item",
     "ItemList",
     "ImageCompareView",

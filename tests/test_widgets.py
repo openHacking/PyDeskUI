@@ -19,6 +19,7 @@ from pydeskui import (
     ProgressView,
     Scheduler,
     SearchEntry,
+    SegmentedControl,
     Theme,
     TranslationContext,
 )
@@ -101,6 +102,32 @@ def test_navigation_item_selected_state(root):
     item.configure(selected=True)
     assert item.cget("selected")
     assert item.cget("variant") == "secondary"
+
+
+def test_segmented_control_selection_keyboard_and_lifetime(root):
+    value = tk.StringVar(master=root, value="enabled")
+    changes = []
+    control = SegmentedControl(
+        root,
+        values=(("all", "All"), ("enabled", "Enabled"), ("disabled", "Disabled")),
+        variable=value,
+        command=lambda: changes.append(value.get()),
+    )
+    control.pack()
+    root.update()
+    assert control.get() == "enabled"
+    assert control.buttons[1].cget("variant") == "secondary"
+    control.buttons[1].focus_force()
+    control.buttons[1].event_generate("<Right>")
+    root.update()
+    assert control.get() == "disabled"
+    assert changes == ["disabled"]
+    control.set("all")
+    assert changes == ["disabled"]
+    with pytest.raises(ValueError):
+        control.set("missing")
+    control.destroy()
+    value.set("enabled")
 
 
 def test_pointer_focuses_entry_and_blank_click_blurs_it(root):

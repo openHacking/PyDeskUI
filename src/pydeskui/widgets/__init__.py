@@ -1,6 +1,6 @@
 """Supported reusable widgets."""
 
-from .controls import Button, Entry, NavigationItem, SearchEntry
+from .controls import Button, Entry, NavigationItem, SearchEntry, SegmentedControl
 from .form import FieldSpec, Form
 from .views import DetailView, Dialog, Item, ItemList, ProgressView
 
@@ -9,6 +9,7 @@ __all__ = [
     "Entry",
     "NavigationItem",
     "SearchEntry",
+    "SegmentedControl",
     "FieldSpec",
     "Form",
     "DetailView",

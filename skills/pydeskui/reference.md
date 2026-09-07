@@ -6,7 +6,7 @@ Popups use `show()`/`hide()`; Sheet manages its own placement. Invalid enum
 values raise `ValueError`; unknown native options raise `tkinter.TclError`.
 Callback exceptions go to the application's `report_callback_exception`.
 
-All 38 components are exported from `pydeskui.widgets`; supporting contexts
+All 39 components are exported from `pydeskui.widgets`; supporting contexts
 and resources are exported from `pydeskui`. Check top-level component re-exports
 against the installed revision.
 
@@ -18,6 +18,8 @@ against the installed revision.
 - **Entry:** native get/insert/delete, validation and external StringVar ownership.
 - **SearchEntry:** debounced `on_change(text)`; Escape clears once; destruction
   removes its trace and pending callback. `debounce_ms` is a nonnegative integer.
+- **SegmentedControl:** compact single selection over string values or `(value, label)`
+  pairs. `get()`/`set(value)` manage selection; Left/Right moves and commits.
 - **ItemList:** `set_items(Sequence[Item])` preserves selection by ID, rejects
   duplicates before mutation, and emits `on_select(id | None)` only on change.
   Arrow keys use native Treeview selection. Initial implementation is intended
@@ -81,7 +83,7 @@ Tk scaling without modifying the interpreter's global scaling.
 
 ## Structure and data components
 
-All 38 components listed here and above are available from `pydeskui.widgets`.
+All 39 components listed here and above are available from `pydeskui.widgets`.
 For example, `from pydeskui.widgets import Tree` uses the component export surface.
 
 All constructors below take positional `master` and optional keyword `theme`.
