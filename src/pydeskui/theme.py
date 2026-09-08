@@ -60,11 +60,13 @@ def palette(dark=False):
         border=border,
         input=border,
         ring=fg,
-        sidebar=muted,
+        # A navigation rail is a surface, not a selected row. Keeping its
+        # base close to the window lets inactive items remain visually quiet.
+        sidebar=bg,
         sidebar_foreground=fg,
         sidebar_primary=primary,
         sidebar_primary_foreground=primary_fg,
-        sidebar_accent=card,
+        sidebar_accent=muted,
         sidebar_accent_foreground=fg,
         sidebar_border=border,
         sidebar_ring=fg,
@@ -226,9 +228,9 @@ class Theme:
         specs: dict[str, tuple[float, Literal["normal", "bold"]]] = {
             "body": (size, "normal"),
             "muted": (size, "normal"),
-            "section": (16, "bold"),
-            "title": (28, "bold"),
-            "display": (36, "bold"),
+            "section": (size + 1, "bold"),
+            "title": (26, "bold"),
+            "display": (34, "bold"),
         }
         for name, (font_size, weight) in specs.items():
             themed = self.fonts.get(name)
@@ -394,6 +396,22 @@ class Theme:
         else:
             self._images[key] = svg_photo(self.master, data, width=n)
         return self._images[key]
+
+    def _transparent_tile(self, key):
+        """Return a stretchable empty image for controls with no resting fill."""
+        key = self._image_key(key)
+        n = self.px(28)
+        spec = (n, 0, None, None, 0)
+        if self._image_specs.get(key) == spec:
+            return self._images[key]
+        self._image_specs[key] = spec
+        image = self._images.get(key)
+        if image is None:
+            image = tk.PhotoImage(master=self.master, width=n, height=n)
+            self._images[key] = image
+        else:
+            image.blank()
+        return image
 
     def _element(self, suffix, images):
         name = self.name(f"{suffix}.slot{self._render_slot}")
@@ -573,7 +591,7 @@ class Theme:
             text=("card", "card_foreground", "card"),
             link=("card", "primary", "card"),
         )
-        base = {"compact": 28, "default": 32, "comfortable": 36}[self.density]
+        base = {"compact": 30, "default": 34, "comfortable": 38}[self.density]
         for variant, (bg, fg, edge) in variants.items():
             normal = self._tile(variant, c[bg], c[edge])
             hover_bg = (
@@ -622,7 +640,7 @@ class Theme:
                     font=self.font,
                     foreground=c[fg],
                     background=c["card"],
-                    padding=(self.px(12), pad),
+                    padding=(self.px(14), pad),
                     anchor="center",
                     borderwidth=0,
                 )
@@ -660,7 +678,7 @@ class Theme:
         )
         s.configure(
             self.name("TEntry"),
-            padding=(self.px(10), self.px((base - 18) / 2)),
+            padding=(self.px(12), self.px((base - 18) / 2)),
             fieldbackground=c["card"],
             foreground=c["foreground"],
             insertcolor=c["foreground"],

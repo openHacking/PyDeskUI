@@ -204,7 +204,7 @@ def test_scale_refresh_preserves_explicit_dimensions(root):
         root.tk.call("tk", "scaling", 2 * (96 / 72))
         theme.configure()
         root.update()
-        for widget, logical in ((card, 12), (toolbar, 6)):
+        for widget, logical in ((card, 16), (toolbar, 8)):
             assert int(theme.style.lookup(widget.cget("style"), "padding")) == theme.px(logical)
         padding = theme.style.lookup(badge.cget("style"), "padding")
         assert tuple(map(int, root.tk.splitlist(padding))) == (theme.px(6), theme.px(2))
@@ -318,10 +318,28 @@ def test_gallery_sidebar_navigation(root, monkeypatch):
     root.update()
     shell = next(child for child in root.winfo_children() if isinstance(child, module.Gallery))
     assert isinstance(shell.nav, s.Sidebar)
+    nav_normal_key = next(
+        key for key in shell.theme._image_specs if key.endswith("gallery.nav")
+    )
+    nav_selected_key = next(
+        key for key in shell.theme._image_specs if key.endswith("gallery.nav.selected")
+    )
+    assert shell.theme._image_specs[nav_normal_key][2] is None
+    assert (
+        shell.theme._image_specs[nav_selected_key][2]
+        == shell.theme.tokens["sidebar_accent"]
+    )
+    assert shell.nav_buttons[shell.page].instate(("selected",))
+    assert all(
+        button.instate(("selected",)) == (key == shell.page)
+        for key, button in shell.nav_buttons.items()
+    )
     for key, button in list(shell.nav_buttons.items())[:2]:
         button.invoke()
         root.update()
         assert shell.page == key
+        assert button.instate(("selected",))
+        assert sum(value.instate(("selected",)) for value in shell.nav_buttons.values()) == 1
         assert shell.body.winfo_children()
 
 

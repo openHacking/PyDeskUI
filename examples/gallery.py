@@ -202,8 +202,19 @@ class Gallery(Frame):
         element = self.theme._element(
             "gallery.nav",
             [
-                self.theme._tile("gallery.nav", c["sidebar"], c["sidebar"]),
-                ("selected", self.theme._tile("gallery.nav.selected", c["card"], c["card"])),
+                self.theme._transparent_tile("gallery.nav"),
+                (
+                    "active",
+                    self.theme._tile(
+                        "gallery.nav.active", c["sidebar_accent"], c["sidebar_accent"]
+                    ),
+                ),
+                (
+                    "selected",
+                    self.theme._tile(
+                        "gallery.nav.selected", c["sidebar_accent"], c["sidebar_accent"]
+                    ),
+                ),
             ],
         )
         self.theme.style.layout(
@@ -238,7 +249,14 @@ class Gallery(Frame):
             font=self.theme.font,
             foreground=c["foreground"],
         )
-        self.theme.style.map(name, foreground=[("focus", c["primary"])])
+        self.theme.style.map(
+            name,
+            foreground=[
+                ("selected", c["sidebar_accent_foreground"]),
+                ("active", c["sidebar_foreground"]),
+                ("focus", c["primary"]),
+            ],
+        )
         for key, button in self.nav_buttons.items():
             button.configure(style=name)
             button.state(("selected",) if key == self.page else ("!selected",))

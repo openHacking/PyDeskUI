@@ -1,6 +1,7 @@
 """Reusable compound views for command-driven desktop tools."""
 
 import tkinter as tk
+from tkinter import font as tkfont
 
 from .widgets import Frame, ItemList, Label, Popover, SearchEntry, Textarea
 
@@ -12,6 +13,8 @@ class CodeEditor(Frame):
         super().__init__(master, theme=theme, **options)
         self._readonly = bool(readonly)
         self._line_numbers = bool(line_numbers)
+        self.code_font = tkfont.Font(self, font="TkFixedFont")
+        self.code_font.configure(size=-self.theme.px(self.theme.font_size))
         self.body = Frame(self, theme=self.theme)
         self.body.pack(fill="both", expand=True)
         self.gutter = tk.Text(
@@ -21,13 +24,22 @@ class CodeEditor(Frame):
             takefocus=False,
             borderwidth=0,
             highlightthickness=0,
-            padx=self.theme.px(6),
-            pady=self.theme.px(8),
-            font="TkFixedFont",
+            padx=self.theme.px(8),
+            pady=self.theme.px(10),
+            font=self.code_font,
         )
         if self._line_numbers:
             self.gutter.pack(side="left", fill="y")
-        self.text = Textarea(self.body, wrap="none", font="TkFixedFont", theme=self.theme)
+        self.text = Textarea(
+            self.body,
+            wrap="none",
+            font=self.code_font,
+            padx=self.theme.px(12),
+            pady=self.theme.px(10),
+            spacing1=self.theme.px(1),
+            spacing3=self.theme.px(1),
+            theme=self.theme,
+        )
         self.text.pack(side="left", fill="both", expand=True)
         self.status = Label(self, variant="muted", theme=self.theme)
         self.status.pack(fill="x", pady=(6, 0))
@@ -41,6 +53,7 @@ class CodeEditor(Frame):
         self._update_chrome()
 
     def _refresh_theme(self):
+        self.code_font.configure(size=-self.theme.px(self.theme.font_size))
         self.gutter.configure(
             background=self.theme.tokens["muted"],
             foreground=self.theme.tokens["muted_foreground"],

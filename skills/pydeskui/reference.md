@@ -19,7 +19,8 @@ against the installed revision.
 - **SearchEntry:** debounced `on_change(text)`; Escape clears once; destruction
   removes its trace and pending callback. `debounce_ms` is a nonnegative integer.
 - **SegmentedControl:** compact single selection over string values or `(value, label)`
-  pairs. `get()`/`set(value)` manage selection; Left/Right moves and commits.
+  pairs. `spacing` adds an optional nonnegative gap. `get()`/`set(value)` manage
+  selection; Left/Right moves and commits.
 - **ItemList:** `set_items(Sequence[Item])` preserves selection by ID, rejects
   duplicates before mutation, and emits `on_select(id | None)` only on change.
   Arrow keys use native Treeview selection. Initial implementation is intended
@@ -93,9 +94,9 @@ Native options and methods remain available unless noted.
 |---|---|
 | Frame | ttk.Frame container; caller manages child geometry. |
 | Label | ttk.Label, including `text`, `textvariable`, `image`, `underline`. |
-| Card | Frame surface with default padding 12 and a fixed logical corner radius of 10. Parent children directly to it. |
+| Card | Frame surface with default padding 16 and a fixed logical corner radius of 10. Parent children directly to it. |
 | Sidebar | Sidebar-colored Frame container; application supplies navigation controls. |
-| Toolbar | Background-colored Frame container with default padding 6. |
+| Toolbar | Background-colored Frame container with default padding 8. |
 | Separator | `orient="horizontal"` or `"vertical"`; non-focusable by default. |
 | Badge | `variant="default"`: `default`, `primary`, `secondary`, `outline`; native label options. |
 | Icon | `name="check", size=20, color=None`; `set_icon(name)`. Decorative Canvas paths, not an SVG loader. |

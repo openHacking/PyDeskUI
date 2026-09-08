@@ -52,16 +52,20 @@ class Button(Owned, ttk.Button):
             super().configure(image="")
             return
         data = _icon_source(self.icon)
-        color = (
-            self.theme.tokens["primary_foreground"]
-            if self.variant == "primary"
-            else self.theme.tokens["foreground"]
-        )
+        color = self._icon_color()
         rgb = tuple(round(value / 257) for value in self.winfo_rgb(color))
         encoded = ("#%02x%02x%02x" % rgb).encode("ascii")
         data = data.replace(b"currentColor", encoded).replace(b"#000001", encoded)
         self._icon_image = self.theme.svg_icon(data, self.theme.px(18))
         super().configure(image=self._icon_image, compound=self.icon_position)
+
+    def _icon_color(self):
+        color = {
+            "primary": self.theme.tokens["primary_foreground"],
+            "destructive": self.theme.tokens["destructive_foreground"],
+            "link": self.theme.tokens["primary"],
+        }.get(self.variant, self.theme.tokens["foreground"])
+        return color
 
     @staticmethod
     def _validate(variant, size):
@@ -127,16 +131,102 @@ class NavigationItem(Button):
         options.setdefault("variant", "secondary" if self.selected else "ghost")
         super().__init__(master, **options)
 
+    def _navigation_style_name(self):
+        base = self.theme.name(f"{self.variant}.{self._size}.TButton")
+        return f"Navigation.{id(self):x}.{base}"
+
+    def _icon_color(self):
+        token = "sidebar_accent_foreground" if self.selected else "sidebar_foreground"
+        return self.theme.tokens[token]
+
+    def _apply_navigation_style(self):
+        name = self._navigation_style_name()
+        c = self.theme.tokens
+        element = self.theme._element(
+            f"navigation.{id(self):x}",
+            [
+                self.theme._transparent_tile(f"navigation.{id(self):x}"),
+                (
+                    "active",
+                    self.theme._tile(
+                        f"navigation.{id(self):x}.active",
+                        c["sidebar_accent"],
+                        c["sidebar_accent"],
+                    ),
+                ),
+                (
+                    "selected",
+                    self.theme._tile(
+                        f"navigation.{id(self):x}.selected",
+                        c["sidebar_accent"],
+                        c["sidebar_accent"],
+                    ),
+                ),
+            ],
+        )
+        self.theme.style.layout(
+            name,
+            [
+                (
+                    element,
+                    {
+                        "sticky": "nsew",
+                        "children": [
+                            (
+                                self.theme.name("portable.Button.padding"),
+                                {
+                                    "sticky": "nsew",
+                                    "children": [
+                                        (
+                                            self.theme.name("portable.Button.label"),
+                                            {"sticky": "nsew"},
+                                        )
+                                    ],
+                                },
+                            )
+                        ],
+                    },
+                )
+            ],
+        )
+        self.theme.style.configure(
+            name,
+            anchor="w",
+            padding=(12, 9),
+            foreground=c["sidebar_foreground"],
+        )
+        self.theme.style.map(
+            name,
+            foreground=[
+                ("selected", c["sidebar_accent_foreground"]),
+                ("active", c["sidebar_foreground"]),
+                ("focus", c["primary"]),
+            ],
+        )
+        ttk.Button.configure(self, style=name)
+        self.state(("selected",) if self.selected else ("!selected",))
+
+    def _refresh_theme(self):
+        super()._refresh_theme()
+        self._apply_navigation_style()
+
     def configure(self, cnf=None, **kwargs):
         if isinstance(cnf, dict):
             kwargs = {**cnf, **kwargs}
             cnf = None
+        selected_changed = False
         if "selected" in kwargs:
             selected = bool(kwargs.pop("selected"))
             if selected != self.selected:
+                selected_changed = True
                 self.selected = selected
                 kwargs["variant"] = "secondary" if selected else "ghost"
-        return super().configure(cnf, **kwargs)
+        result = super().configure(cnf, **kwargs)
+        if selected_changed:
+            self._refresh_theme()
+        else:
+            self._apply_navigation_style()
+        return result
 
     config = configure
 
@@ -156,6 +246,7 @@ class SegmentedControl(Owned, ttk.Frame):
         values=(),
         variable=None,
         command=None,
+        spacing=0,
         theme=None,
         **ttk_options,
     ):
@@ -165,6 +256,8 @@ class SegmentedControl(Owned, ttk.Frame):
         options = tuple(values)
         if not options:
             raise ValueError("values must not be empty")
+        if not isinstance(spacing, int) or spacing < 0:
+            raise ValueError("spacing must be a nonnegative integer")
         normalized = []
         for option in options:
             value, label = option if isinstance(option, tuple) else (option, option)
@@ -180,6 +273,7 @@ class SegmentedControl(Owned, ttk.Frame):
         self.values = tuple(normalized)
         self.variable = variable if variable is not None else tk.StringVar(master=master)
         self.command = command
+        self.spacing = spacing
         if self.variable.get() not in identifiers:
             self.variable.set(identifiers[0])
         self.buttons = []
@@ -191,7 +285,12 @@ class SegmentedControl(Owned, ttk.Frame):
                 variant="secondary" if value == self.variable.get() else "outline",
                 theme=theme,
             )
-            button.grid(row=0, column=index, sticky="ew")
+            button.grid(
+                row=0,
+                column=index,
+                sticky="ew",
+                padx=(0, self.theme.px(spacing) if index < len(self.values) - 1 else 0),
+            )
             button.bind("<Left>", self._previous)
             button.bind("<Right>", self._next)
             self.columnconfigure(index, weight=1, uniform=f"segment-{id(self):x}")

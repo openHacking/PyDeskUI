@@ -20,7 +20,8 @@ Callback exceptions go to the application's `report_callback_exception`.
 - **SearchEntry:** debounced `on_change(text)`; Escape clears once; destruction
   removes its trace and pending callback. `debounce_ms` is a nonnegative integer.
 - **SegmentedControl:** one-of-many selection for strings or `(value, label)`
-  pairs. `get()` and `set(value, notify=False)` mirror the owned StringVar;
+  pairs. `spacing` adds an optional nonnegative gap between buttons.
+  `get()` and `set(value, notify=False)` mirror the owned StringVar;
   Left and Right move selection and notify the no-argument command.
 - **ItemList:** `set_items(Sequence[Item])` preserves selection by ID, rejects
   duplicates before mutation, and emits `on_select(id | None)` only on change.
@@ -97,9 +98,9 @@ Native options and methods remain available unless noted.
 |---|---|
 | Frame | ttk.Frame container; caller manages child geometry. |
 | Label | ttk.Label, including `text`, `textvariable`, `image`, `underline`. |
-| Card | Frame surface with default padding 12 and a fixed logical corner radius of 10. Parent children directly to it. |
+| Card | Frame surface with default padding 16 and a fixed logical corner radius of 10. Parent children directly to it. |
 | Sidebar | Sidebar-colored Frame container; application supplies navigation controls. |
-| Toolbar | Background-colored Frame container with default padding 6. |
+| Toolbar | Background-colored Frame container with default padding 8. |
 | Separator | `orient="horizontal"` or `"vertical"`; non-focusable by default. |
 | Badge | `variant="default"`: `default`, `primary`, `secondary`, `outline`; native label options. |
 | Icon | `name=None, source=None, size=20, color=None`; built-in default is check. `name` and `source` are mutually exclusive; `set_icon(name)` and `set_source(resource)` replace the SVG. |

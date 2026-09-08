@@ -180,6 +180,8 @@ class Card(_Surface):
     override the defaults. Images are retained and refreshed by the theme.
     """
 
+    _padding = 16
+
     def __init__(self, master, *, theme=None, **options):
         options.setdefault("borderwidth", 0)
         options.setdefault("relief", "flat")
@@ -206,7 +208,7 @@ class Toolbar(_Surface):
     """Compact container for native buttons; their normal focus traversal remains."""
 
     _role = "background"
-    _padding = 6
+    _padding = 8
 
 
 class Separator(Owned, ttk.Separator):
@@ -223,7 +225,14 @@ class Separator(Owned, ttk.Separator):
         self._refresh_theme()
 
     def _refresh_theme(self):
-        self.theme.style.configure(self._role_style, background=_color(self.theme, "border"))
+        if hasattr(self.theme, "surface_style"):
+            self.theme.surface_style(self._role_style, "border")
+        self.theme.style.configure(
+            self._role_style,
+            background=_color(self.theme, "border"),
+            borderwidth=0,
+            relief="flat",
+        )
 
 
 class Badge(Label):

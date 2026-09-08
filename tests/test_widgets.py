@@ -96,12 +96,25 @@ def test_button_optional_icon_and_position(root):
 
 
 def test_navigation_item_selected_state(root):
-    item = NavigationItem(root, text="Home", icon="home")
+    theme = Theme(root, tokens={"sidebar_accent_foreground": "#ff0000"})
+    item = NavigationItem(root, text="Home", icon="home", theme=theme)
+    inactive_icon = str(item.cget("image"))
     assert not item.cget("selected")
     assert item.cget("variant") == "ghost"
+    normal_key = next(
+        key for key in item.theme._image_specs if key.endswith(f"navigation.{id(item):x}")
+    )
+    selected_key = next(
+        key
+        for key in item.theme._image_specs
+        if key.endswith(f"navigation.{id(item):x}.selected")
+    )
+    assert item.theme._image_specs[normal_key][2] is None
+    assert item.theme._image_specs[selected_key][2] == item.theme.tokens["sidebar_accent"]
     item.configure(selected=True)
     assert item.cget("selected")
     assert item.cget("variant") == "secondary"
+    assert str(item.cget("image")) != inactive_icon
 
 
 def test_segmented_control_selection_keyboard_and_lifetime(root):
@@ -112,11 +125,13 @@ def test_segmented_control_selection_keyboard_and_lifetime(root):
         values=(("all", "All"), ("enabled", "Enabled"), ("disabled", "Disabled")),
         variable=value,
         command=lambda: changes.append(value.get()),
+        spacing=6,
     )
     control.pack()
     root.update()
     assert control.get() == "enabled"
     assert control.buttons[1].cget("variant") == "secondary"
+    assert int(control.buttons[0].grid_info()["padx"][1]) == control.theme.px(6)
     control.buttons[1].focus_force()
     control.buttons[1].event_generate("<Right>")
     root.update()
@@ -126,6 +141,8 @@ def test_segmented_control_selection_keyboard_and_lifetime(root):
     assert changes == ["disabled"]
     with pytest.raises(ValueError):
         control.set("missing")
+    with pytest.raises(ValueError):
+        SegmentedControl(root, values=("all",), spacing=-1)
     control.destroy()
     value.set("enabled")
 
