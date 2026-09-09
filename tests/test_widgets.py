@@ -152,6 +152,8 @@ def test_pointer_focuses_entry_and_blank_click_blurs_it(root):
     entry = Entry(root, theme=theme)
     entry.pack()
     root.update()
+    root.focus_force()
+    root.update()
     entry.event_generate("<Button-1>", x=4, y=4)
     root.update()
     assert root.focus_get() is entry
@@ -178,6 +180,41 @@ def test_search_lifetime(root):
     pump(root)
     assert changes == ["ab", ""]
     assert not value.trace_info()
+
+
+def test_search_accessories_leave_room_for_focused_insertion_cursor(root):
+    theme = Theme(root)
+    entry = SearchEntry(
+        root,
+        theme=theme,
+        placeholder="Search tools",
+        shortcut_hint="⌘ K",
+        content_padding=(14, 10),
+    )
+    entry.pack(fill="x")
+    root.update()
+    assert entry._hint.winfo_ismapped()
+    assert entry._shortcut_label.winfo_ismapped()
+
+    entry.focus_force()
+    root.update()
+    assert not entry._hint.winfo_ismapped()
+    assert not entry._shortcut_label.winfo_ismapped()
+    assert entry._search_label.winfo_ismapped()
+    assert entry.bbox("insert")[0] > (
+        entry._search_label.winfo_x() + entry._search_label.winfo_width()
+    )
+
+    root.focus_force()
+    root.update()
+    assert entry._hint.winfo_ismapped()
+    assert entry._shortcut_label.winfo_ismapped()
+    with pytest.raises(ValueError):
+        entry.configure(content_padding=(-1, 4))
+    with pytest.raises(ValueError):
+        entry.configure(content_padding=(float("nan"), 4))
+    entry.destroy()
+    theme.close()
 
 
 def test_theme_isolation_and_atomic_validation(root):

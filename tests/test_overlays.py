@@ -75,6 +75,7 @@ def test_popup_dismissal_and_focus(root):
     assert popup.winfo_rootx() + popup.winfo_width() <= root.winfo_vrootwidth()
     popup._outside(SimpleNamespace(widget=field))
     assert popup.is_open
+    entry.focus_force()
     popup._outside(SimpleNamespace(widget=entry))
     root.update()
     assert not popup.is_open
@@ -112,6 +113,56 @@ def test_popup_focus_loss_dismisses_without_stealing_focus(root):
     root.update()
     assert not popup.is_open
     assert root.focus_get() is target
+
+
+def test_popover_is_attached_toggles_and_optionally_closes_on_return(root):
+    theme = Theme(root)
+    owner = Button(root, text="Options", theme=theme)
+    owner.pack()
+    popover = Popover(owner, theme=theme, close_on_return=True)
+    field = Entry(popover.content, theme=theme)
+    field.pack()
+    owner.configure(command=lambda: popover.toggle(focus=field))
+    root.update()
+
+    owner.invoke()
+    root.update()
+    assert popover.is_open
+    assert popover.winfo_toplevel() is root
+    assert root.focus_get() is field
+    inset = theme.px(max(2, min(theme.radius, 6) / 2))
+    assert int(popover.content.pack_info()["padx"]) == inset
+    assert int(popover.content.pack_info()["pady"]) == inset
+    popover._outside(SimpleNamespace(widget=owner))
+    assert popover.is_open
+    owner.invoke()
+    assert not popover.is_open
+
+    # Reopening before Aqua's deferred unmap runs must cancel the stale work.
+    owner.invoke()
+    assert popover.is_open
+    root.update_idletasks()
+    assert popover.is_open
+    assert popover.place_info()
+    owner.invoke()
+    popover.hide()
+    root.update_idletasks()
+    assert not popover.place_info()
+
+    owner.invoke()
+    root.update()
+    root.event_generate("<Return>")
+    root.update()
+    assert not popover.is_open
+
+    owner.invoke()
+    root.update()
+    root.event_generate("<ButtonPress-1>", x=500, y=300)
+    root.update()
+    assert not popover.is_open
+    popover.destroy()
+    owner.destroy()
+    theme.close()
 
 
 def test_timer_cleanup_and_no_focus(root):
@@ -239,8 +290,9 @@ def test_native_toplevel_appearance_tracks_theme(root):
 
     for mode in ("light", "dark"):
         theme.configure(mode=mode)
-        for window in (root, popover, tooltip, dialog):
+        for window in (root, tooltip, dialog):
             assert window.wm_attributes("-appearance") == expected(mode)
+        assert popover.winfo_toplevel() is root
         assert popover.content.cget("background") == theme.tokens["popover"]
         assert tooltip.label.cget("foreground") == theme.tokens["popover_foreground"]
     for window in (popover, tooltip, dialog):

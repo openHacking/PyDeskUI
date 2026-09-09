@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.3
+
+- Reduce wide-control image tiling and avoid rebuilding unchanged navigation styles.
+- Paint native background elements explicitly on Aqua so surfaces and transparent navigation rows match their semantic colors.
+- Keep focus, pressed and invalid outlines at one logical pixel.
+- Add optional boundaries to Card, ScrollArea and CodeEditor, plus content padding and a
+  menu-matched visible surface boundary to Popover.
+- Follow the parent semantic surface for Icon backgrounds across theme changes; explicit colors remain supported.
+- Use one-pixel Textarea boundaries and synchronized, auto-hiding CodeEditor scrollbars.
+- Rebuild line numbers only when the line count changes and match gutter line spacing to the editor.
+- Keep empty focused inputs clear of placeholder overlays and reserve real text insets for SearchEntry accessories.
+- Attach Popover to its application viewport with outside-click dismissal, trigger toggling, initial focus and optional Return dismissal.
+- Work around Tk 9 Aqua's missing expose after attached popups unmap, without forcing a full synchronous window redraw.
+
+
 ## 0.2.2
 
 - Add semantic `Surface` roles and typography variants for application shells.

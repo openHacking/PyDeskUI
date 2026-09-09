@@ -35,7 +35,7 @@ Proposed exports `ImageView(master, *, theme=None)` and `ImageSelection(master, 
 
 ## Theme API
 
-`Theme(master, *, mode="light", accent=None, reduced_motion=False, focus_ring="auto", translator=None)` creates a scoped context. `mode` is light or dark; `focus_ring` is `auto`, `always`, or `never`. System theme detection is an application/platform-adapter responsibility. Methods: `configure(mode=..., accent=..., reduced_motion=..., focus_ring=...)`, `close()`.
+`Theme(master, *, mode="light", accent=None, reduced_motion=False, focus_ring="auto", translator=None)` creates a scoped context. `mode` is light or dark; `focus_ring` is `auto`, `always`, or `never`. System theme detection is an application/platform-adapter responsibility. Methods: `configure(mode=..., accent=..., reduced_motion=..., focus_ring=...)`, `icon_image(name, *, size=18, color=None)` for colorized bundled icons, and `close()`.
 
 A widget's `theme=None` selects the interpreter's default PyDeskUI light context. Explicit Theme contexts allow two independently themed sections. Context style names include a unique context prefix and never modify bare `TButton` or `TEntry`. Closing a context with live widgets raises `RuntimeError`; destroy widgets first. Tk native surfaces such as OS file dialogs may not follow custom colors.
 
@@ -75,3 +75,11 @@ root.mainloop()
 ## Compatibility
 
 Map `DeskButton` to Button and `DeskInput` to Entry with a migration guide; do not preserve silently broken semantics. `TxRoundedButton` remains a retired experiment rather than a promised replacement API. Do not add a fictitious `TxButton` alias simply to conceal a consumer import error. Application and library changes land through released versions or explicit editable development installs.
+
+## 0.2.3 surface and editing options
+
+`Card`, `ScrollArea`, `Textarea` and `CodeEditor` accept `bordered=False` for embedded layouts. Text inputs retain a one-logical-pixel focus cue. `ScrollArea(surface="background")` paints its canvas and content consistently; `Icon(surface=...)` can explicitly select a semantic surface, otherwise it follows its parent. `Label` also follows the nearest semantic parent when no surface is supplied. Explicit icon background colors remain supported.
+
+`SearchEntry(content_padding=(x, y))` controls its base text inset; search and shortcut accessories reserve additional space instead of covering the native insertion cursor. Empty focused entries hide their placeholder until focus leaves.
+
+`Popover(padding=16, close_on_return=False)` controls logical content padding and optional Return-key dismissal. Popovers use the same rounded, bordered surface as menus, are bounded to their application viewport, dismiss on outside click or Escape, accept `show(focus=widget)`, and expose `toggle()` for trigger buttons. `CodeEditor.status_bar` accepts trailing editor actions; its auto-hiding horizontal and vertical scrollbars keep the line-number gutter synchronized. Native Aqua surface painting uses the toolkit’s background element and does not stretch bitmaps across large containers.

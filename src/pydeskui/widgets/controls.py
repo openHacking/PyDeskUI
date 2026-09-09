@@ -1,5 +1,6 @@
 """Native controls with explicit parenting and scoped appearance."""
 
+import math
 import tkinter as tk
 from functools import lru_cache
 from importlib.resources import files
@@ -142,6 +143,14 @@ class NavigationItem(Button):
     def _apply_navigation_style(self):
         name = self._navigation_style_name()
         c = self.theme.tokens
+        parent: tk.Misc | None = self.master
+        role = None
+        while role is None and parent is not None:
+            role = getattr(parent, "role", getattr(parent, "_role", None))
+            parent = getattr(parent, "master", None)
+        background_element = self.theme.name("portable.background")
+        if background_element not in self.theme.style.element_names():
+            self.theme.style.element_create(background_element, "from", "default", "background")
         element = self.theme._element(
             f"navigation.{id(self):x}",
             [
@@ -167,6 +176,7 @@ class NavigationItem(Button):
         self.theme.style.layout(
             name,
             [
+                (background_element, {"sticky": "nsew"}),
                 (
                     element,
                     {
@@ -191,6 +201,7 @@ class NavigationItem(Button):
         )
         self.theme.style.configure(
             name,
+            background=c[role or "sidebar"],
             anchor="w",
             padding=(12, 9),
             foreground=c["sidebar_foreground"],
@@ -214,6 +225,8 @@ class NavigationItem(Button):
         if isinstance(cnf, dict):
             kwargs = {**cnf, **kwargs}
             cnf = None
+        if set(kwargs) == {"selected"} and bool(kwargs["selected"]) == self.selected:
+            return None
         selected_changed = False
         if "selected" in kwargs:
             selected = bool(kwargs.pop("selected"))
@@ -358,17 +371,18 @@ class Entry(Owned, ttk.Entry):
         self._refresh_theme()
 
     def _update_hint(self, *args):
-        if self.placeholder and not self.variable.get():
+        # Empty focused fields must expose the native insertion cursor instead
+        # of painting a label over it.
+        if self.placeholder and not self.variable.get() and not self.instate(("focus",)):
             self._hint.place(
-                x=self.theme.px(11) + self._leading_width,
+                x=self.theme.px(11 + self._leading_width),
                 rely=0.5,
                 anchor="w",
                 width=max(
                     0,
                     self.winfo_width()
                     - self.theme.px(22)
-                    - self._leading_width
-                    - self._trailing_width,
+                    - self.theme.px(self._leading_width + self._trailing_width),
                 ),
             )
         else:
@@ -398,6 +412,7 @@ class SearchEntry(Entry):
         debounce_ms=150,
         search_icon=True,
         shortcut_hint="",
+        content_padding=None,
         theme=None,
         **ttk_options,
     ):
@@ -405,10 +420,15 @@ class SearchEntry(Entry):
             raise ValueError("debounce_ms must be a nonnegative integer")
         self.on_change, self.debounce_ms = on_change, debounce_ms
         self.search_icon, self.shortcut_hint = bool(search_icon), shortcut_hint
+        self.content_padding = self._validate_content_padding(content_padding)
         self._leading_width = 24 if self.search_icon else 0
         self._trailing_width = 54 if shortcut_hint else 0
         self._pending = None
         super().__init__(master, textvariable=textvariable, theme=theme, **ttk_options)
+        self._base_entry_style = ttk.Entry.cget(self, "style")
+        self._search_entry_style = (
+            f"Search.{id(self):x}.{self._base_entry_style}"
+        )
         self._search_image = None
         self._search_label = tk.Label(self, borderwidth=0, takefocus=False)
         self._shortcut_label = tk.Label(
@@ -422,8 +442,55 @@ class SearchEntry(Entry):
         self._refresh_theme()
         self._update_hint()
 
+    @staticmethod
+    def _validate_content_padding(value):
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            value = (value, value)
+        else:
+            value = tuple(value)
+        if len(value) not in (2, 4) or any(
+            not isinstance(part, (int, float)) or not math.isfinite(part) or part < 0
+            for part in value
+        ):
+            raise ValueError("content_padding must contain two or four nonnegative numbers")
+        return value
+
+    @staticmethod
+    def _expand_padding(value):
+        if len(value) == 2:
+            horizontal, vertical = value
+            return horizontal, vertical, horizontal, vertical
+        return value
+
+    def _apply_content_padding(self):
+        if not hasattr(self, "_base_entry_style"):
+            return
+        style = self.theme.style
+        base = self._base_entry_style
+        if self.content_padding is None:
+            raw = style.lookup(base, "padding") or (12, 7)
+            values = tuple(float(part) for part in self.tk.splitlist(raw))
+        else:
+            values = tuple(self.theme.px(part) for part in self.content_padding)
+        left, top, right, bottom = self._expand_padding(values)
+        left += self.theme.px(self._leading_width)
+        right += self.theme.px(self._trailing_width)
+        layout = style.layout(base)
+        if layout:
+            style.layout(self._search_entry_style, layout)
+        configuration = style.configure(base) or {}
+        configuration["padding"] = (left, top, right, bottom)
+        style.configure(self._search_entry_style, **configuration)
+        state_map = style.map(base) or {}
+        if state_map:
+            style.map(self._search_entry_style, **state_map)
+        ttk.Entry.configure(self, style=self._search_entry_style)
+
     def _refresh_theme(self):
         super()._refresh_theme()
+        self._apply_content_padding()
         if not hasattr(self, "_search_label"):
             return
         for label in (self._search_label, self._shortcut_label):
@@ -454,7 +521,7 @@ class SearchEntry(Entry):
             self._search_label.place(x=self.theme.px(10), rely=0.5, anchor="w")
         else:
             self._search_label.place_forget()
-        if self.shortcut_hint and empty:
+        if self.shortcut_hint and empty and not self.instate(("focus",)):
             self._shortcut_label.place(
                 x=self.winfo_width() - self.theme.px(10), rely=0.5, anchor="e"
             )
@@ -494,13 +561,38 @@ class SearchEntry(Entry):
             raise ValueError("debounce_ms must be a nonnegative integer")
         self.debounce_ms = delay
         self.on_change = kwargs.pop("on_change", self.on_change)
-        self.search_icon = kwargs.pop("search_icon", self.search_icon)
-        self.shortcut_hint = kwargs.pop("shortcut_hint", self.shortcut_hint)
-        return super().configure(cnf, **kwargs)
+        search_icon = bool(kwargs.pop("search_icon", self.search_icon))
+        shortcut_hint = kwargs.pop("shortcut_hint", self.shortcut_hint)
+        old_padding = self.content_padding
+        padding = self._validate_content_padding(
+            kwargs.pop("content_padding", old_padding)
+        )
+        result = super().configure(cnf, **kwargs)
+        accessories_changed = (
+            search_icon != self.search_icon or shortcut_hint != self.shortcut_hint
+        )
+        self.search_icon, self.shortcut_hint = search_icon, shortcut_hint
+        self._leading_width = 24 if search_icon else 0
+        self._trailing_width = 54 if shortcut_hint else 0
+        self.content_padding = padding
+        if hasattr(self, "_shortcut_label"):
+            self._shortcut_label.configure(text=shortcut_hint)
+        if accessories_changed or padding != old_padding:
+            self._refresh_theme()
+        else:
+            self._apply_content_padding()
+            self._update_hint()
+        return result
 
     config = configure
 
     def cget(self, key):
-        if key in ("on_change", "debounce_ms", "search_icon", "shortcut_hint"):
+        if key in (
+            "on_change",
+            "debounce_ms",
+            "search_icon",
+            "shortcut_hint",
+            "content_padding",
+        ):
             return getattr(self, key)
         return super().cget(key)

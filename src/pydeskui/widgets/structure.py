@@ -106,6 +106,8 @@ class Surface(Frame):
         self.role, self.bordered, self.padding = role, bool(bordered), padding
         self._role_style = f"Surface.{role}.{id(self):x}.{theme.name('TFrame')}"
         options.setdefault("style", self._role_style)
+        options.setdefault("borderwidth", _px(theme, 1) if bordered else 0)
+        options.setdefault("relief", "solid" if bordered else "flat")
         super().__init__(master, theme=theme, **options)
         self._refresh_theme()
 
@@ -128,9 +130,15 @@ class Label(Owned, ttk.Label):
 
     _variants = frozenset({"body", "muted", "section", "title", "display"})
 
-    def __init__(self, master, *, variant="body", surface="card", theme=None, **options):
+    def __init__(self, master, *, variant="body", surface=None, theme=None, **options):
         if variant not in self._variants:
             raise ValueError("Invalid label variant")
+        if surface is None:
+            parent = master
+            while parent is not None and surface is None:
+                surface = getattr(parent, "role", getattr(parent, "_role", None))
+                parent = getattr(parent, "master", None)
+            surface = surface or "card"
         if surface not in Surface._roles:
             raise ValueError("Invalid label surface")
         theme = resolve_theme(master, theme)
@@ -182,16 +190,18 @@ class Card(_Surface):
 
     _padding = 16
 
-    def __init__(self, master, *, theme=None, **options):
-        options.setdefault("borderwidth", 0)
-        options.setdefault("relief", "flat")
+    def __init__(self, master, *, bordered=True, theme=None, **options):
+        self.bordered = bool(bordered)
+        theme = resolve_theme(master, theme)
+        options.setdefault("borderwidth", _px(theme, 1) if bordered else 0)
+        options.setdefault("relief", "solid" if bordered else "flat")
         super().__init__(master, theme=theme, **options)
 
     def _refresh_theme(self):
         super()._refresh_theme()
         theme = self.theme
         if hasattr(theme, "rounded_surface_style"):
-            theme.rounded_surface_style(self._role_style, "card", bordered=True)
+            theme.rounded_surface_style(self._role_style, "card", bordered=self.bordered)
         theme.style.configure(
             self._role_style,
             padding=_px(theme, self._padding),
@@ -301,7 +311,7 @@ class Icon(Owned, tk.Canvas):
     )
 
     def __init__(
-        self, master, *, name=None, source=None, size=20, color=None, theme=None, **options
+        self, master, *, name=None, source=None, size=20, color=None, surface=None, theme=None, **options
     ):
         if name is not None and source is not None:
             raise ValueError("name and source are mutually exclusive")
@@ -312,6 +322,9 @@ class Icon(Owned, tk.Canvas):
             raise ValueError("size must be a positive finite number")
         theme = resolve_theme(master, theme)
         self.icon_name, self.icon_source, self.icon_color = name, source, color
+        if surface is not None and surface not in Surface._roles:
+            raise ValueError("Invalid icon surface")
+        self.surface = surface
         self._icon_image: tk.PhotoImage | None = None
         self._canvas_item = None
         self._logical_size = size
@@ -358,7 +371,14 @@ class Icon(Owned, tk.Canvas):
             self.configure(**{key: value})
             self._scaled_dimensions[key] = value
         if self._auto_background:
-            self.configure(background=_color(self.theme, "background"))
+            # Resolve semantic roles instead of looking up a stale parent style during
+            # theme broadcasts (widgets are refreshed in arbitrary order).
+            parent: tk.Misc | None = self.master
+            role = self.surface
+            while role is None and parent is not None:
+                role = getattr(parent, "role", getattr(parent, "_role", None))
+                parent = getattr(parent, "master", None)
+            self.configure(background=_color(self.theme, role or "background"))
         self._draw()
 
     def _draw(self, event=None):
@@ -482,6 +502,8 @@ class ScrollArea(Frame):
         master,
         *,
         horizontal=False,
+        surface="background",
+        bordered=True,
         resize_debounce_ms=0,
         theme=None,
         **options,
@@ -492,11 +514,12 @@ class ScrollArea(Frame):
         self._layout_job = None
         self._layout_signature = None
         self.resize_debounce_ms = resize_debounce_ms
+        self.surface = surface
         super().__init__(master, theme=theme, **options)
         self.horizontal = bool(horizontal)
         self.canvas = tk.Canvas(
             self,
-            highlightthickness=_px(self.theme, 1),
+            highlightthickness=_px(self.theme, 1) if bordered else 0,
             borderwidth=0,
             takefocus=True,
             width=_px(self.theme, 240),
@@ -504,9 +527,9 @@ class ScrollArea(Frame):
         )
         self._canvas_defaults = {
             key: (logical, _px(self.theme, logical))
-            for key, logical in (("width", 240), ("height", 180), ("highlightthickness", 1))
+            for key, logical in (("width", 240), ("height", 180), ("highlightthickness", 1 if bordered else 0))
         }
-        self.content = Frame(self.canvas, theme=self.theme)
+        self.content = Surface(self.canvas, role=surface, theme=self.theme)
         self._window = self.canvas.create_window(0, 0, window=self.content, anchor="nw")
         self.yscrollbar = ttk.Scrollbar(
             self,
@@ -549,7 +572,7 @@ class ScrollArea(Frame):
             style = _oriented_style(self.theme, "TScrollbar", orient)
             self.theme.style.configure(style, width=_px(self.theme, 14))
         self.canvas.configure(
-            background=_color(self.theme, "background"),
+            background=_color(self.theme, self.surface),
             highlightbackground=_color(self.theme, "border"),
             highlightcolor=_color(self.theme, "primary"),
         )

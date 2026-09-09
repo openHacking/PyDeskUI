@@ -160,7 +160,7 @@ def test_lightweight_card_refresh_and_host_theme(root):
     s.Label(card, text="Card content").pack()
     root.update()
     if root.tk.call("tk", "windowingsystem") == "aqua":
-        assert theme.style.layout(card.cget("style"))[0][0] == theme.name(
+        assert theme.style.layout(card.cget("style"))[1][0] == theme.name(
             "portable.Frame.border"
         )
     else:
@@ -178,7 +178,7 @@ def test_lightweight_card_refresh_and_host_theme(root):
         theme.style.theme_use(target)
         root.update()
         if root.tk.call("tk", "windowingsystem") == "aqua":
-            assert theme.style.layout(card.cget("style"))[0][0] == theme.name(
+            assert theme.style.layout(card.cget("style"))[1][0] == theme.name(
                 "portable.Frame.border"
             )
         else:
@@ -545,10 +545,11 @@ def test_image_surfaces_and_card_border_refresh(root):
                 if isinstance(widget, s.Label)
                 else theme.name("portable.Frame.border")
             )
-            assert layout[0][0] == expected
+            assert layout[0][0] == theme.name("portable.background")
+            assert layout[1][0] == expected
             assert theme.style.lookup(widget.cget("style"), "background") == theme.tokens[token]
         if root.tk.call("tk", "windowingsystem") == "aqua":
-            assert theme.style.layout(card.cget("style"))[0][0] == theme.name(
+            assert theme.style.layout(card.cget("style"))[1][0] == theme.name(
                 "portable.Frame.border"
             )
         else:
@@ -569,3 +570,16 @@ def test_aqua_default_logical_scale_one(root):
         assert theme.font.cget("size") == -13
     finally:
         root.tk.call("tk", "scaling", old)
+
+
+def test_icons_follow_semantic_surface_on_theme_change(root):
+    theme = Theme(root)
+    parent = s.Surface(root, role="card", theme=theme)
+    icon = s.Icon(parent, theme=theme)
+    custom = s.Icon(parent, background="#123456", theme=theme)
+    area = s.ScrollArea(parent, bordered=False, theme=theme)
+    for mode in ("dark", "light", "dark"):
+        theme.configure(mode=mode)
+        assert icon.cget("background") == theme.tokens["card"]
+        assert custom.cget("background") == "#123456"
+        assert int(area.canvas.cget("highlightthickness")) == 0

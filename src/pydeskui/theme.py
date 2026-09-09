@@ -4,6 +4,7 @@ import math
 import tkinter as tk
 import weakref
 from collections import OrderedDict
+from importlib.resources import files
 from tkinter import font, ttk
 from typing import Literal
 
@@ -370,7 +371,8 @@ class Theme:
 
     def _tile(self, key, fill, border, stroke=1, radius=None):
         key = self._image_key(key)
-        n = self.px(28)
+        # A wider center avoids thousands of tiny image tiles in wide entries.
+        n = self.px(64)
         spec = (
             n,
             self.radius if radius is None else radius,
@@ -400,7 +402,8 @@ class Theme:
     def _transparent_tile(self, key):
         """Return a stretchable empty image for controls with no resting fill."""
         key = self._image_key(key)
-        n = self.px(28)
+        # A wider center avoids thousands of tiny image tiles in wide entries.
+        n = self.px(64)
         spec = (n, 0, None, None, 0)
         if self._image_specs.get(key) == spec:
             return self._images[key]
@@ -417,7 +420,8 @@ class Theme:
         name = self.name(f"{suffix}.slot{self._render_slot}")
         if name not in self.style.element_names():
             self.style.element_create(
-                name, "image", images[0], *images[1:], border=self.px(12), padding=0, sticky="nsew"
+                name, "image", images[0], *images[1:], border=self.px(12),
+                width=self.px(28), height=self.px(28), padding=0, sticky="nsew"
             )
         return name
 
@@ -537,6 +541,20 @@ class Theme:
             self._svg_icons.popitem(last=False)
         return image
 
+    def icon_image(self, name, *, size=18, color=None):
+        """Return a themed photo for a bundled icon name."""
+        if not isinstance(name, str) or not name or "/" in name or "\\" in name:
+            raise ValueError(f"Invalid icon name: {name!r}")
+        if not isinstance(size, (int, float)) or not math.isfinite(size) or size <= 0:
+            raise ValueError("size must be a positive finite number")
+        source = files("pydeskui").joinpath("assets", "icons", f"{name}.svg")
+        if not source.is_file():
+            raise ValueError(f"Unknown bundled icon: {name!r}")
+        rgb = self._rgb(color or self.tokens["foreground"])
+        encoded = ("#%02x%02x%02x" % rgb).encode("ascii")
+        data = source.read_bytes().replace(b"currentColor", encoded).replace(b"#000001", encoded)
+        return self.svg_icon(data, self.px(size))
+
     def _install(self):
         self._surface_signatures.clear()
         self._installing = True
@@ -580,7 +598,7 @@ class Theme:
         ):
             custom = self.name("portable." + element)
             if custom not in s.element_names():
-                s.element_create(custom, "from", "clam", element)
+                s.element_create(custom, "from", "default" if element == "background" else "clam", element)
         variants = dict(
             default=("card", "card_foreground", "input"),
             outline=("card", "card_foreground", "input"),
@@ -598,8 +616,8 @@ class Theme:
                 c["accent"] if variant in ("default", "outline", "ghost", "text", "link") else c[bg]
             )
             hover = self._tile(variant + "hover", hover_bg, c["foreground"])
-            pressed = self._tile(variant + "pressed", c[bg], c[fg], 2)
-            focus = self._tile(variant + "focus", c[bg], c["ring"], 2)
+            pressed = self._tile(variant + "pressed", c[bg], c[fg], 1)
+            focus = self._tile(variant + "focus", c[bg], c["ring"], 1)
             disabled = self._tile(variant + "disabled", c["muted"], c["muted"])
             button_states = [normal, ("disabled", disabled), ("pressed", pressed)]
             focus_spec = self._focus_spec(focus)
@@ -648,9 +666,9 @@ class Theme:
         entry_states = [
             self._tile("entry", c["card"], c["input"]),
             ("disabled", self._tile("entrydisabled", c["muted"], c["border"])),
-            ("invalid", self._tile("entryinvalid", c["card"], c["destructive"], 2)),
+            ("invalid", self._tile("entryinvalid", c["card"], c["destructive"], 1)),
         ]
-        focus_spec = self._input_focus_spec(self._tile("entryfocus", c["card"], c["ring"], 2))
+        focus_spec = self._input_focus_spec(self._tile("entryfocus", c["card"], c["ring"], 1))
         if focus_spec is not None:
             entry_states.append(focus_spec)
         entry_element = self._element("entry.field", entry_states)
@@ -714,7 +732,7 @@ class Theme:
                     custom = self.name("portable." + element)
                     if custom not in s.element_names():
                         try:
-                            s.element_create(custom, "from", "clam", element)
+                            s.element_create(custom, "from", "default" if element == "background" else "clam", element)
                         except tk.TclError:
                             custom = element
                     options = dict(options)
@@ -725,8 +743,9 @@ class Theme:
 
             try:
                 portable = {
-                    "TFrame": [("Frame.border", {"sticky": "nsew"})],
+                    "TFrame": [("background", {"sticky": "nsew"}), ("Frame.border", {"sticky": "nsew"})],
                     "TLabel": [
+                        ("background", {"sticky": "nsew"}),
                         (
                             "Label.border",
                             {
@@ -1040,14 +1059,11 @@ class Theme:
         if self._surface_signatures.get(name) == signature:
             return
         self._surface_signatures[name] = signature
-        key = self._image_key("surface." + token)
-        if key not in self._images:
-            self._images[key] = tk.PhotoImage(master=self.master, width=2, height=2)
-        image = self._images[key]
-        image.put(self.tokens[token], to=(0, 0, 2, 2))
-        element = self.name(key)
+        # Frame.border draws only an outline on Aqua. Explicitly paint the
+        # native background element: no bitmap stretching, extra canvas or border.
+        element = self.name("portable.background")
         if element not in self.style.element_names():
-            self.style.element_create(element, "image", image, border=0, padding=0, sticky="nsew")
+            self.style.element_create(element, "from", "default", "background")
         if label:
             for part in ("Label.padding", "Label.label"):
                 custom = self.name("portable." + part)
@@ -1057,6 +1073,7 @@ class Theme:
             self.style.layout(
                 name,
                 [
+                    (element, {"sticky": "nsew"}),
                     (
                         self.name("portable.Label.padding"),
                         {
@@ -1070,7 +1087,7 @@ class Theme:
             border = self.name("portable.Frame.border")
             if border not in self.style.element_names():
                 self.style.element_create(border, "from", "clam", "Frame.border")
-            self.style.layout(name, [(border, {"sticky": "nsew"})])
+            self.style.layout(name, [(element, {"sticky": "nsew"}), (border, {"sticky": "nsew"})])
         self.style.configure(
             name,
             background=self.tokens[token],

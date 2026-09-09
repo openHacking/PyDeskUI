@@ -77,11 +77,14 @@ class _Dismissal:
         widget = cast(Any, self)
         host = widget.master.winfo_toplevel()
         for target in dict.fromkeys((host, widget.winfo_toplevel())):
-            for sequence, callback in (
+            bindings = [
                 ("<ButtonPress>", self._outside),
                 ("<Escape>", self._escape),
                 ("<FocusOut>", self._focus_out),
-            ):
+            ]
+            if getattr(self, "close_on_return", False):
+                bindings.append(("<Return>", self._return))
+            for sequence, callback in bindings:
                 ident = target.bind(sequence, callback, add="+")
                 self._dismiss_bindings.append((target, sequence, ident))
 
@@ -101,6 +104,13 @@ class _Dismissal:
         self._dismiss_bindings.clear()
 
     def _outside(self, event):
+        owner = getattr(self, "_owner", None)
+        if (
+            owner is not None
+            and owner is not owner.winfo_toplevel()
+            and _within(event.widget, owner)
+        ):
+            return
         if self.is_open and not _within(event.widget, self):
             cast(Any, self).hide(restore_focus=False)
 
@@ -119,6 +129,13 @@ class _Dismissal:
     def _escape(self, event=None):
         if self.is_open:
             cast(Any, self).hide()
+            return "break"
+
+    def _return(self, event=None):
+        widget = cast(Any, self)
+        focus = widget.focus_get()
+        if self.is_open and (focus is self or _within(focus, self)):
+            widget.hide()
             return "break"
 
 
@@ -246,6 +263,7 @@ class _AttachedPopup(_Dismissal, Owned, ttk.Frame):
         self._owner_is_destroying = False
         host = owner.winfo_toplevel()
         super().__init__(host, takefocus=interactive, style=theme.popup_style())
+        self._aqua_deferred_unmap = self.tk.call("tk", "windowingsystem") == "aqua"
         self._own(owner, theme)
         self.content = tk.Frame(self)
         self.content.pack(fill="both", expand=True)
@@ -296,6 +314,9 @@ class _AttachedPopup(_Dismissal, Owned, ttk.Frame):
         anchor = self._owner if anchor is None else anchor
         if anchor.tk is not self.tk:
             raise ValueError("Anchor belongs to another interpreter")
+        # Cancel Aqua's deferred unmap when a popup is reopened in the same
+        # event turn. This keeps rapid toggles free of flashes and stale work.
+        self._cancel_timers()
         host = self.master
         host.update_idletasks()
         self.update_idletasks()
@@ -336,6 +357,9 @@ class _AttachedPopup(_Dismissal, Owned, ttk.Frame):
             return
         try:
             self.lift()
+            # A placed popup's descendants are not necessarily viewable until
+            # geometry settles on Aqua.
+            self.update_idletasks()
             self._focus_initial()
         except tk.TclError:
             self.hide(restore_focus=False)
@@ -345,13 +369,38 @@ class _AttachedPopup(_Dismissal, Owned, ttk.Frame):
 
     def hide(self, *, restore_focus=True):
         was_open = self.is_open
+        if not was_open:
+            # In particular, do not cancel Aqua's already queued lower-then-
+            # unmap sequence. Repeated hide() calls must remain idempotent.
+            return
         self.is_open = False
         self._cancel_timers()
         self._disarm()
-        self.place_forget()
+        if was_open and self._aqua_deferred_unmap:
+            # Tk 9 Aqua fails to expose the area vacated by pack/place forget
+            # (Tk ticket 2ef5dd8036). Lowering first lets AppKit repaint only
+            # the intersecting siblings. Unmap after that paint has completed;
+            # a local host expose also repairs any uncovered parent background.
+            x, y = self.winfo_x(), self.winfo_y()
+            width, height = self.winfo_width(), self.winfo_height()
+            self.lower()
+            self._when_idle(partial(self._finish_hide, x, y, width, height))
+        else:
+            self.place_forget()
         if was_open and self._interactive and restore_focus:
             _restore(self._previous_focus)
         self._previous_focus = None
+
+    def _finish_hide(self, x, y, width, height):
+        if self.is_open:
+            return
+        self.place_forget()
+        try:
+            self.master.event_generate(
+                "<Expose>", x=x, y=y, width=width, height=height, count=0
+            )
+        except tk.TclError:
+            pass
 
     def destroy(self):
         if self.winfo_exists():
@@ -373,13 +422,43 @@ class _AttachedPopup(_Dismissal, Owned, ttk.Frame):
     def _refresh_theme(self):
         self.configure(style=self.theme.popup_style())
         self.content.configure(background=_color(self.theme, "popover"))
+        # Tk child geometry does not honor a ttk frame style's padding on every
+        # backend (notably Aqua). Keep the content inset from the rounded tile so
+        # its border and transparent corners remain visible.
+        inset = self.theme.px(max(2, min(self.theme.radius, 6) / 2))
+        self.content.pack_configure(padx=inset, pady=inset)
 
 
-class Popover(_Popup):
-    """Interactive popup; add arbitrary widgets to .content, then show()."""
+class Popover(_AttachedPopup):
+    """Viewport-bounded interactive popup with predictable light dismissal."""
 
-    def __init__(self, master, *, theme=None):
+    def __init__(self, master, *, padding=16, close_on_return=False, theme=None):
+        self.close_on_return = bool(close_on_return)
+        self._initial_focus = None
+        self._anchor_gap = 4
         super().__init__(master, theme=theme)
+        self.content.configure(padx=self.theme.px(padding), pady=self.theme.px(padding))
+
+    def show(self, *, anchor=None, x=None, y=None, focus=None):
+        if focus is not None and not _within(focus, self):
+            raise ValueError("Initial focus must belong to the popover")
+        self._initial_focus = focus
+        super().show(anchor=anchor, x=x, y=y)
+        return self
+
+    def toggle(self, **kwargs):
+        if self.is_open:
+            self.hide()
+        else:
+            self.show(**kwargs)
+        return self
+
+    def _focus_initial(self):
+        target = self._initial_focus
+        if target is not None and target.winfo_exists() and target.winfo_viewable():
+            target.focus_force()
+        else:
+            self.focus_force()
 
 
 class Tooltip(_Popup):
@@ -508,8 +587,6 @@ class DropdownMenu(_AttachedPopup):
     def _refresh_theme(self):
         super()._refresh_theme()
         self.theme.menu_item_style()
-        inset = self.theme.px(max(2, min(self.theme.radius, 6) / 2))
-        self.content.pack_configure(padx=inset, pady=inset)
         for separator in self._separators:
             separator.configure(background=_color(self.theme, "border"))
 

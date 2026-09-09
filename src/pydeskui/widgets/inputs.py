@@ -47,13 +47,16 @@ def _portable(theme, source):
 
 
 class Textarea(Owned, tk.Text):
-    """Native multiline Text, including indices, undo, tags and validation state."""
+    """Native multiline text with an optional idle boundary and a focus ring."""
 
-    def __init__(self, master, *, theme=None, **options):
+    def __init__(self, master, *, bordered=True, theme=None, **options):
+        self.bordered = bool(bordered)
         theme = resolve_theme(master, theme)
         self._custom_colors = set(options)
         options.setdefault("wrap", "word")
         options.setdefault("undo", True)
+        options.setdefault("borderwidth", 0)
+        options.setdefault("highlightthickness", theme.px(1))
         super().__init__(master, **options)
         self._own(master, theme)
         self._refresh_theme()
@@ -66,7 +69,7 @@ class Textarea(Owned, tk.Text):
             insertbackground=_color(theme, "foreground", "text"),
             selectbackground=_color(theme, "primary", "accent"),
             selectforeground=_color(theme, "primary_foreground", "surface"),
-            highlightbackground=_color(theme, "input", "muted"),
+            highlightbackground=_color(theme, "input" if self.bordered else "background", "muted"),
             highlightcolor=_color(theme, "ring", "accent"),
             font=theme.font,
         )
@@ -357,10 +360,10 @@ class Spinbox(Owned, ttk.Spinbox):
         field_states = [
             theme._tile("inputs.spin", c["card"], c["input"]),
             ("disabled", theme._tile("inputs.spin.disabled", c["muted"], c["border"])),
-            ("invalid", theme._tile("inputs.spin.invalid", c["card"], c["destructive"], 2)),
+            ("invalid", theme._tile("inputs.spin.invalid", c["card"], c["destructive"], 1)),
         ]
         focus_spec = theme._input_focus_spec(
-            theme._tile("inputs.spin.focus", c["card"], c["ring"], 2)
+            theme._tile("inputs.spin.focus", c["card"], c["ring"], 1)
         )
         if focus_spec is not None:
             field_states.append(focus_spec)
@@ -960,8 +963,8 @@ class Combobox(Owned, ttk.Combobox):
         theme = self.theme
         c, style = theme.tokens, theme.style
         normal = theme._tile("inputs.combo", c["card"], c["input"])
-        focused = theme._tile("inputs.combo.focus", c["card"], c["ring"], 2)
-        invalid = theme._tile("inputs.combo.invalid", c["card"], c["destructive"], 2)
+        focused = theme._tile("inputs.combo.focus", c["card"], c["ring"], 1)
+        invalid = theme._tile("inputs.combo.invalid", c["card"], c["destructive"], 1)
         disabled = theme._tile("inputs.combo.disabled", c["muted"], c["border"])
         field_states = [normal, ("disabled", disabled), ("invalid", invalid)]
         field_states.append(("user2", focused))

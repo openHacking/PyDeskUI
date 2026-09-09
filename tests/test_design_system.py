@@ -68,6 +68,21 @@ def test_tk9_svg_resources(root, tmp_path):
     icon.destroy()
 
 
+def test_theme_bundled_icon_image(root):
+    theme = Theme(root)
+    icon = theme.icon_image("check", size=16, color="#238636")
+    assert icon.width() == theme.px(16)
+    assert abs(icon.height() - theme.px(16)) <= 1
+    assert theme.icon_image("check", size=16, color="#238636") is icon
+    with pytest.raises(ValueError, match="Unknown bundled icon"):
+        theme.icon_image("not-a-real-icon")
+    with pytest.raises(ValueError, match="Invalid icon name"):
+        theme.icon_image("../check")
+    with pytest.raises(ValueError, match="positive finite"):
+        theme.icon_image("check", size=0)
+    theme.close()
+
+
 def test_native_svg_theme_performance(root):
     started = time.perf_counter()
     theme = Theme(root)

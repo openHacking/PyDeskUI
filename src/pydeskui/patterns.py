@@ -4,14 +4,17 @@ import tkinter as tk
 from tkinter import font as tkfont
 
 from .widgets import Frame, ItemList, Label, Popover, SearchEntry, Textarea
+from .widgets.views import _AutoScrollbar
 
 
 class CodeEditor(Frame):
     """Small code editing surface with line numbers and a cursor status row."""
 
-    def __init__(self, master, *, readonly=False, line_numbers=True, theme=None, **options):
+    def __init__(self, master, *, readonly=False, line_numbers=True, bordered=True, theme=None, **options):
         super().__init__(master, theme=theme, **options)
         self._readonly = bool(readonly)
+        self._bordered = bool(bordered)
+        self._gutter_lines = 0
         self._line_numbers = bool(line_numbers)
         self.code_font = tkfont.Font(self, font="TkFixedFont")
         self.code_font.configure(size=-self.theme.px(self.theme.font_size))
@@ -26,13 +29,18 @@ class CodeEditor(Frame):
             highlightthickness=0,
             padx=self.theme.px(8),
             pady=self.theme.px(10),
+            spacing1=self.theme.px(1),
+            spacing3=self.theme.px(1),
             font=self.code_font,
         )
         if self._line_numbers:
-            self.gutter.pack(side="left", fill="y")
+            self.gutter.grid(row=0, column=0, sticky="ns")
         self.text = Textarea(
             self.body,
             wrap="none",
+            bordered=bordered,
+            borderwidth=0,
+            highlightthickness=self.theme.px(1),
             font=self.code_font,
             padx=self.theme.px(12),
             pady=self.theme.px(10),
@@ -40,9 +48,20 @@ class CodeEditor(Frame):
             spacing3=self.theme.px(1),
             theme=self.theme,
         )
-        self.text.pack(side="left", fill="both", expand=True)
-        self.status = Label(self, variant="muted", theme=self.theme)
-        self.status.pack(fill="x", pady=(6, 0))
+        self.text.grid(row=0, column=1, sticky="nsew")
+        self.vertical = _AutoScrollbar(self.body, orient="vertical", command=self.text.yview,
+                                      style=self.theme.name("Vertical.TScrollbar"))
+        self.vertical.grid(row=0, column=2, sticky="ns")
+        self.horizontal = _AutoScrollbar(self.body, orient="horizontal", command=self.text.xview,
+                                        style=self.theme.name("Horizontal.TScrollbar"))
+        self.horizontal.grid(row=1, column=1, sticky="ew")
+        self.text.configure(yscrollcommand=self._scroll_changed, xscrollcommand=self.horizontal.set)
+        self.body.rowconfigure(0, weight=1)
+        self.body.columnconfigure(1, weight=1)
+        self.status_bar = Frame(self, theme=self.theme)
+        self.status_bar.pack(side="bottom", fill="x", before=self.body, pady=(6, 0))
+        self.status = Label(self.status_bar, variant="muted", theme=self.theme)
+        self.status.pack(side="left")
         self.text.bind("<KeyRelease>", self._update_chrome, add="+")
         self.text.bind("<ButtonRelease>", self._update_chrome, add="+")
         self.text.bind("<<Modified>>", self._update_chrome, add="+")
@@ -59,6 +78,10 @@ class CodeEditor(Frame):
             foreground=self.theme.tokens["muted_foreground"],
         )
 
+    def _scroll_changed(self, first, last):
+        self.vertical.set(first, last)
+        self.gutter.yview_moveto(first)
+
     def _sync_scroll(self, event=None):
         self.after_idle(lambda: self.gutter.yview_moveto(self.text.yview()[0]))
 
@@ -66,10 +89,12 @@ class CodeEditor(Frame):
         try:
             lines = max(1, int(self.text.index("end-1c").split(".")[0]))
             current_line, current_column = map(int, self.text.index("insert").split("."))
-            self.gutter.configure(state="normal")
-            self.gutter.delete("1.0", "end")
-            self.gutter.insert("1.0", "\n".join(map(str, range(1, lines + 1))))
-            self.gutter.configure(state="disabled")
+            if lines != self._gutter_lines:
+                self.gutter.configure(state="normal")
+                self.gutter.delete("1.0", "end")
+                self.gutter.insert("1.0", "\n".join(map(str, range(1, lines + 1))))
+                self.gutter.configure(state="disabled")
+                self._gutter_lines = lines
             self.status.configure(text=f"Ln {current_line}, Col {current_column + 1}")
             self.text.edit_modified(False)
         except tk.TclError:
@@ -118,10 +143,13 @@ class CommandPalette(Popover):
             self.results.on_select(selected)
         return "break"
 
-    def show(self, *, anchor=None, x=None, y=None):
-        result = super().show(anchor=anchor, x=x, y=y)
-        self.search.focus_set()
-        return result
+    def show(self, *, anchor=None, x=None, y=None, focus=None):
+        return super().show(
+            anchor=anchor,
+            x=x,
+            y=y,
+            focus=self.search if focus is None else focus,
+        )
 
 
 class ImageCompareView(Frame):
