@@ -324,11 +324,26 @@ def test_gallery_sidebar_navigation(root, monkeypatch):
     nav_selected_key = next(
         key for key in shell.theme._image_specs if key.endswith("gallery.nav.selected")
     )
-    assert shell.theme._image_specs[nav_normal_key][2] is None
+    nav_focus_key = next(
+        key for key in shell.theme._image_specs if key.endswith("gallery.nav.focus")
+    )
+    nav_selected_focus_key = next(
+        key for key in shell.theme._image_specs if key.endswith("gallery.nav.selected.focus")
+    )
+    assert shell.theme._image_specs[nav_normal_key][2] == shell.theme.tokens["sidebar"]
     assert (
         shell.theme._image_specs[nav_selected_key][2]
         == shell.theme.tokens["sidebar_accent"]
     )
+    assert shell.theme._image_specs[nav_normal_key][1] == shell.theme.radius
+    assert shell.theme._image_specs[nav_selected_key][1] == shell.theme.radius
+    assert shell.theme._image_specs[nav_focus_key][1] == shell.theme.radius
+    assert shell.theme._image_specs[nav_selected_focus_key][1] == shell.theme.radius
+    nav_style = shell.theme.name("Nav.TButton")
+    nav_background = shell.theme.style.layout(nav_style)[0]
+    assert nav_background[0] == shell.theme.name("portable.background")
+    assert set(nav_background[1]["sticky"]) == set("nsew")
+    assert shell.theme.style.lookup(nav_style, "background") == shell.theme.tokens["sidebar"]
     assert shell.nav_buttons[shell.page].instate(("selected",))
     assert all(
         button.instate(("selected",)) == (key == shell.page)

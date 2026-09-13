@@ -13,6 +13,7 @@
 - Keep empty focused inputs clear of placeholder overlays and reserve real text insets for SearchEntry accessories.
 - Attach Popover to its application viewport with outside-click dismissal, trigger toggling, initial focus and optional Return dismissal.
 - Work around Tk 9 Aqua's missing expose after attached popups unmap, without forcing a full synchronous window redraw.
+- Match disabled icon backgrounds to the muted button surface on Windows.
 
 
 ## 0.2.2

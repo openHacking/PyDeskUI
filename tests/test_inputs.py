@@ -473,6 +473,34 @@ def test_select_opens_on_first_pointer_press(root):
     assert root.focus_get() is widget._listbox
 
 
+def test_checkbox_uses_portable_checkmark_assets_and_refreshes(root):
+    style = ttk.Style(root)
+    native_layout = style.layout("TCheckbutton")
+    theme = Theme(root)
+    widget = show(root, Checkbox(root, theme=theme, text="Include archived"))
+    layout = str(style.layout(widget.cget("style")))
+    assert "inputs.checkbox.indicator" in layout
+    assert "inputs.portable.Checkbutton.padding" in layout
+    assert "inputs.portable.Checkbutton.label" in layout
+    assert "Checkbutton.focus" not in layout
+    assert style.layout("TCheckbutton") == native_layout
+
+    off = theme._images[theme._image_key("inputs.checkbox.False.normal")]
+    on = theme._images[theme._image_key("inputs.checkbox.True.normal")]
+    assert off.width() == theme.px(28)
+    assert off.height() == theme.px(22)
+    assert off.get(theme.px(4), theme.px(4)) != on.get(theme.px(4), theme.px(4))
+    assert off.transparency_get(off.width() - 1, 0)
+
+    widget.event_generate("<space>")
+    root.update()
+    assert widget.instate(("selected",))
+    before = on.get(theme.px(4), theme.px(4))
+    theme.configure(mode="dark")
+    refreshed = theme._images[theme._image_key("inputs.checkbox.True.normal")]
+    assert refreshed.get(theme.px(4), theme.px(4)) != before
+
+
 def test_switch_pill_assets_are_scoped_and_refresh(root):
     style = ttk.Style(root)
     native_layout = style.layout("TCheckbutton")
@@ -622,6 +650,7 @@ def test_spinbox_image_arrows_preserve_native_mouse_behavior(root):
     layout = str(theme.style.layout(widget.cget("style")))
     assert ".uparrow" in layout and ".downarrow" in layout
     assert "inputs.portable.Spinbox.textarea" in layout
+    assert theme.style.lookup(widget.cget("style"), "background") == theme.tokens["card"]
 
     def click(direction):
         point = next(
@@ -639,6 +668,7 @@ def test_spinbox_image_arrows_preserve_native_mouse_behavior(root):
     click("down")
     assert widget.get() == "2" and calls == ["4", "2"]
     theme.configure(mode="dark")
+    assert theme.style.lookup(widget.cget("style"), "background") == theme.tokens["card"]
     widget.state(("disabled",))
     click("up")
     assert widget.get() == "2" and calls == ["4", "2"]
