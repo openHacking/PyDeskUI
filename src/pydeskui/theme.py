@@ -662,7 +662,11 @@ class Theme:
                     anchor="center",
                     borderwidth=0,
                 )
-                s.map(name, foreground=[("disabled", c["muted_foreground"])])
+                s.map(
+                    name,
+                    foreground=[("disabled", c["muted_foreground"])],
+                    background=[("disabled", c["muted"])],
+                )
         entry_states = [
             self._tile("entry", c["card"], c["input"]),
             ("disabled", self._tile("entrydisabled", c["muted"], c["border"])),
@@ -698,6 +702,7 @@ class Theme:
             self.name("TEntry"),
             padding=(self.px(12), self.px((base - 18) / 2)),
             fieldbackground=c["card"],
+            background=c["card"],
             foreground=c["foreground"],
             insertcolor=c["foreground"],
             font=self.font,

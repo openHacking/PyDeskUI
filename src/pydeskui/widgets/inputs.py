@@ -98,6 +98,82 @@ class Checkbox(Owned, ttk.Checkbutton):
         options.setdefault("style", theme.name("TCheckbutton"))
         super().__init__(master, variable=self.variable, **options)
         self._own(master, theme)
+        Checkbox._refresh_theme(self)
+
+    def _refresh_theme(self):
+        theme = self.theme
+        c, style = theme.tokens, theme.style
+        images = {}
+        for selected in (False, True):
+            for state in ("normal", "focus", "disabled"):
+                key = theme._image_key(f"inputs.checkbox.{selected}.{state}")
+                size, gap, inset = theme.px(16), theme.px(6), theme.px(3)
+                data = _checkbox_svg(
+                    size,
+                    gap,
+                    inset,
+                    theme.px(min(theme.radius, 4)),
+                    c["primary"] if selected else c["card"],
+                    c["primary"] if selected else c["input"],
+                    c["primary_foreground"],
+                    c["ring"],
+                    selected,
+                    state == "focus",
+                    state == "disabled",
+                )
+                width = size + inset * 2 + gap
+                if key in theme._images:
+                    theme._images[key].configure(
+                        data=data, format=("svg", "-scaletowidth", width)
+                    )
+                else:
+                    theme._images[key] = svg_photo(theme.master, data, width=width)
+                images[selected, state] = theme._images[key]
+        element = theme.name(f"inputs.checkbox.indicator.slot{theme._render_slot}")
+        if element not in style.element_names():
+            states = [
+                images[False, "normal"],
+                ("disabled", "selected", images[True, "disabled"]),
+                ("disabled", images[False, "disabled"]),
+            ]
+            selected_focus = theme._focus_spec(images[True, "focus"], "selected")
+            normal_focus = theme._focus_spec(images[False, "focus"])
+            if selected_focus is not None:
+                states.append(selected_focus)
+            if normal_focus is not None:
+                states.append(normal_focus)
+            states.append(("selected", images[True, "normal"]))
+            style.element_create(element, "image", *states, sticky="")
+        name = theme.name("TCheckbutton")
+        padding = _portable(theme, "Checkbutton.padding")
+        label = _portable(theme, "Checkbutton.label")
+        style.layout(
+            name,
+            [
+                (
+                    padding,
+                    {
+                        "sticky": "nsew",
+                        "children": [
+                            (element, {"side": "left", "sticky": ""}),
+                            (label, {"side": "left", "sticky": "nsew"}),
+                        ],
+                    },
+                )
+            ],
+        )
+        style.configure(
+            name,
+            background=c["card"],
+            foreground=c["foreground"],
+            font=theme.font,
+            padding=theme.px(2),
+        )
+        style.map(
+            name,
+            background=[("disabled", c["card"]), ("!disabled", c["card"])],
+            foreground=[("disabled", c["muted_foreground"]), ("!disabled", c["foreground"])],
+        )
 
 
 class Switch(Checkbox):
@@ -194,6 +270,46 @@ class Switch(Checkbox):
             background=[("disabled", c["card"]), ("!disabled", c["card"])],
             foreground=[("disabled", c["muted_foreground"]), ("!disabled", c["foreground"])],
         )
+
+
+def _checkbox_svg(
+    size,
+    gap,
+    inset,
+    radius,
+    fill,
+    border,
+    check,
+    ring,
+    selected,
+    focused,
+    disabled,
+):
+    """Return a shadcn-style square checkbox with a portable check mark."""
+    canvas = size + inset * 2
+    opacity = ' opacity="0.5"' if disabled else ""
+    focus = (
+        f'<rect x="0.75" y="0.75" width="{canvas - 1.5}" height="{canvas - 1.5}" '
+        f'rx="{radius + 2}" fill="none" stroke="{ring}" stroke-width="1.5" opacity="0.45"/>'
+        if focused
+        else ""
+    )
+    mark = ""
+    if selected:
+        x, y = inset, inset
+        mark = (
+            f'<path d="M {x + size * 0.25} {y + size * 0.52} '
+            f'L {x + size * 0.44} {y + size * 0.7} '
+            f'L {x + size * 0.78} {y + size * 0.32}" fill="none" stroke="{check}" '
+            f'stroke-width="{max(1.5, size * 0.12)}" stroke-linecap="round" '
+            'stroke-linejoin="round"/>'
+        )
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{canvas + gap}" height="{canvas}" '
+        f'viewBox="0 0 {canvas + gap} {canvas}">{focus}<g{opacity}>'
+        f'<rect x="{inset}" y="{inset}" width="{size}" height="{size}" rx="{radius}" '
+        f'fill="{fill}" stroke="{border}" stroke-width="1"/>{mark}</g></svg>'
+    )
 
 
 def _switch_svg(width, height, gap, track, thumb, ring, selected, focused):
@@ -425,6 +541,7 @@ class Spinbox(Owned, ttk.Spinbox):
             name,
             padding=(theme.px(10), theme.px(3)),
             fieldbackground=c["card"],
+            background=c["card"],
             foreground=c["foreground"],
             selectbackground=c["primary"],
             selectforeground=c["primary_foreground"],

@@ -199,10 +199,29 @@ class Gallery(Frame):
     def _nav_styles(self):
         name = self.theme.name("Nav.TButton")
         c = self.theme.tokens
+        background_element = self.theme.name("portable.background")
+        if background_element not in self.theme.style.element_names():
+            self.theme.style.element_create(
+                background_element, "from", "default", "background"
+            )
         element = self.theme._element(
             "gallery.nav",
             [
-                self.theme._transparent_tile("gallery.nav"),
+                self.theme._tile("gallery.nav", c["sidebar"], c["sidebar"]),
+                self.theme._focus_spec(
+                    self.theme._tile(
+                        "gallery.nav.selected.focus",
+                        c["sidebar_accent"],
+                        c["sidebar_ring"],
+                        2,
+                    ),
+                    "selected",
+                ),
+                self.theme._focus_spec(
+                    self.theme._tile(
+                        "gallery.nav.focus", c["sidebar"], c["sidebar_ring"], 2
+                    )
+                ),
                 (
                     "active",
                     self.theme._tile(
@@ -220,6 +239,7 @@ class Gallery(Frame):
         self.theme.style.layout(
             name,
             [
+                (background_element, {"sticky": "nsew"}),
                 (
                     element,
                     {
@@ -247,6 +267,7 @@ class Gallery(Frame):
             padding=(12, 9),
             anchor="w",
             font=self.theme.font,
+            background=c["sidebar"],
             foreground=c["foreground"],
         )
         self.theme.style.map(

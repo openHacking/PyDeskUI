@@ -95,6 +95,32 @@ def test_button_optional_icon_and_position(root):
         button.configure(icon_position="middle")
 
 
+def test_disabled_button_icon_background_matches_disabled_surface(root):
+    theme = Theme(root)
+    buttons = [
+        Button(root, text=variant, icon="copy", variant=variant, theme=theme)
+        for variant in (
+            "default",
+            "primary",
+            "text",
+            "secondary",
+            "outline",
+            "ghost",
+            "destructive",
+            "link",
+        )
+    ]
+
+    for mode in ("light", "dark"):
+        theme.configure(mode=mode)
+        for button in buttons:
+            button.state(("disabled",))
+            assert (
+                theme.style.lookup(button.cget("style"), "background", ("disabled",))
+                == theme.tokens["muted"]
+            )
+
+
 def test_navigation_item_selected_state(root):
     theme = Theme(root, tokens={"sidebar_accent_foreground": "#ff0000"})
     item = NavigationItem(root, text="Home", icon="home", theme=theme)
@@ -162,6 +188,22 @@ def test_pointer_focuses_entry_and_blank_click_blurs_it(root):
     root.event_generate("<ButtonPress-1>", x=500, y=450)
     root.update()
     assert root.focus_get() is not entry
+
+
+def test_entry_host_background_matches_rounded_field(root):
+    theme = Theme(root)
+    entry = Entry(root, theme=theme)
+    search = SearchEntry(root, theme=theme)
+
+    for widget in (entry, search):
+        assert theme.style.lookup(widget.cget("style"), "background") == theme.tokens["card"]
+
+    entry.state(("invalid",))
+    search.state(("disabled",))
+    theme.configure(mode="dark")
+
+    for widget in (entry, search):
+        assert theme.style.lookup(widget.cget("style"), "background") == theme.tokens["card"]
 
 
 def test_search_lifetime(root):
